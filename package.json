@@ -1,0 +1,39 @@
+{
+  "name": "shopmanager-desktop",
+  "version": "1.0.0",
+  "description": "Offline Windows desktop inventory, POS, accounts and shop management software",
+  "main": "electron/main.cjs",
+  "author": "ShopManager",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build:web": "vite build",
+    "start": "electron .",
+    "dist": "vite build && electron-builder --win --x64",
+    "check": "node --check electron/main.cjs",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^32.2.7",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.shopmanager.desktop",
+    "productName": "ShopManager",
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "directories": {"output": "release"},
+    "win": {"target": [{"target": "nsis", "arch": ["x64"]}], "artifactName": "ShopManager-Setup-${version}.${ext}"},
+    "nsis": {"oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true},
+    "npmRebuild": true
+  }
+}
