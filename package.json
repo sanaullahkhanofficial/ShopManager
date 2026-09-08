@@ -1,6 +1,6 @@
 {
   "name": "shopmanager-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Offline Windows desktop inventory, POS, accounts and shop management software",
   "main": "electron/main.cjs",
   "author": "ShopManager",
