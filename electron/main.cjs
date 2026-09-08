@@ -6,11 +6,19 @@ let db, win, dataDir;
 const now = () => new Date().toISOString();
 
 function hashPassword(pw, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.scryptSync(pw, salt, 64).toString("hex");
+  const hash = crypto.scryptSync(String(pw ?? ""), salt, 64).toString("hex");
   return `${salt}:${hash}`;
 }
 function verifyPassword(pw, stored) {
-  try { const [salt, hash] = stored.split(":"); return crypto.timingSafeEqual(Buffer.from(hash,"hex"), crypto.scryptSync(pw,salt,64)); } catch { return false; }
+  try {
+    if (typeof stored !== "string" || !stored.includes(":")) return false;
+    const [salt, hash] = stored.split(":");
+    const expected = Buffer.from(hash, "hex");
+    const actual = crypto.scryptSync(String(pw ?? ""), salt, 64);
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
 }
 function initDb() {
   const dir = app.getPath("userData"); fs.mkdirSync(dir,{recursive:true});
@@ -74,9 +82,14 @@ function nextNo(prefix){ return `${prefix}-${Date.now().toString().slice(-9)}`; 
 function registerIpc(){
   ipcMain.handle("settings:get",()=>settings());
   ipcMain.handle("settings:update",(_,o)=>setSettings(o));
-  ipcMain.handle("auth:login",(_,credentials)=>{
-    const {username,password}=credentials||{};
-    const u=db.prepare("SELECT * FROM users WHERE username=? AND status='active'").get(username);
+  ipcMain.handle("auth:login",(_,credentialsOrUsername,passwordArg)=>{
+    const credentials = (credentialsOrUsername && typeof credentialsOrUsername === "object")
+      ? credentialsOrUsername
+      : { username: credentialsOrUsername, password: passwordArg };
+    const username = String(credentials.username ?? "").trim();
+    const password = String(credentials.password ?? "");
+    if (!username || !password) throw new Error("Username and password are required");
+    const u=db.prepare("SELECT id,username,display_name,role,password_hash FROM users WHERE username=@username AND status='active'").get({username});
     if(!u||!verifyPassword(password,u.password_hash)) throw new Error("Invalid username or password");
     return {id:u.id,username:u.username,display_name:u.display_name,role:u.role};
   });
