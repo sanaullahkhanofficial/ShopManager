@@ -20,24 +20,54 @@ host that doesn't give you a **persistent disk/volume**, every redeploy or
 container restart wipes all data. Confirm your host mounts a real volume at
 `DATA_DIR` before you rely on this for real student/fee records.
 
-## Option A — Render.com (simplest, has a free persistent disk on the Starter plan)
+## Option A — Render.com (one click, via the included Blueprint)
 
-1. Push this repo (or your fork) to GitHub — already done if you're working
-   from [PR #1](../../pull/1)'s branch.
+The repo includes `render.yaml`, a Render Blueprint, so you don't have to
+type any settings into Render's dashboard by hand:
+
+**[Deploy to Render](https://render.com/deploy?repo=https://github.com/sanaullahkhanofficial/ShopManager/tree/claude/edumanage-school-erp-ojctql)**
+
+1. Click the button above, sign in (GitHub login is easiest), and approve
+   Render's access to this repo when it asks.
+2. Render reads `render.yaml` and pre-fills everything — build command,
+   start command, and a `SESSION_SECRET` it generates for you. Just click
+   **Apply**/**Create Web Service**.
+3. Wait for the build to finish (a few minutes the first time), then open
+   the `https://<your-service>.onrender.com` URL it gives you.
+
+**Important tradeoff on the free plan:** Render's free web services have no
+persistent disk — every redeploy, and every wake-up after ~15 minutes of
+inactivity (the free tier sleeps), wipes the SQLite database back to empty.
+That's fine for kicking the tires (which is what you asked for), but not for
+real student/fee records. When you're ready for that, open the service in
+Render, upgrade it to the **Starter** plan (~$7/mo at time of writing), add
+a **Disk** mounted at `/opt/render/project/src/data`, and uncomment the
+`disk:` block in `render.yaml` (or just add the disk from the dashboard —
+either works). Redeploy once after that and your data will persist.
+
+### If you'd rather not use the Blueprint button
+
+1. Push this repo (or your fork) to GitHub — already done, this is
+   [PR #1](../../pull/1)'s branch.
 2. On [render.com](https://render.com), **New → Web Service**, connect the repo.
 3. Settings:
    - **Runtime:** Node
    - **Build Command:** `npm install && npm run build:web`
    - **Start Command:** `node server.cjs`
-   - **Add a Disk:** mount path `/opt/render/project/src/data`, size 1GB+
    - **Environment variables:**
-     - `DATA_DIR=/opt/render/project/src/data`
      - `SESSION_SECRET=` (generate one — see `.env.example`)
      - `NODE_ENV=production`
+   - (Optional, for persistence) **Add a Disk:** mount path
+     `/opt/render/project/src/data`, size 1GB+, and set
+     `DATA_DIR=/opt/render/project/src/data`
 4. Deploy. Render gives you a `https://<your-service>.onrender.com` URL —
    that's your public link. First visit shows the Setup Wizard.
 
-## Option B — Railway.app (persistent volumes built in)
+## Option B — Railway.app (persistent volumes built in, no card for the trial)
+
+Railway lets you start without a credit card (a one-time trial credit, then
+a small monthly free credit that isn't enough for an always-on service —
+check their current pricing page before relying on this long-term).
 
 1. **New Project → Deploy from GitHub repo**, pick this repo/branch.
 2. Add a **Volume**, mount it at `/app/data`.
