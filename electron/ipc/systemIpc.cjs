@@ -3,9 +3,29 @@
 const path = require("node:path");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
-const { BrowserWindow, dialog, app, shell } = require("electron");
+// `electron` is a devDependency only needed by the desktop app (main.cjs).
+// This module is also loaded by server.cjs's plain-Node web target, where
+// `electron` is never installed (a production `npm install --omit=dev`
+// wouldn't have it) — so the require must not blow up module loading there.
+// The handlers that actually use these APIs (backup/print/files dialogs)
+// are never dispatched over HTTP (see server.cjs's EXCLUDED_CHANNELS), but
+// they still guard themselves below in case this file is ever wired up
+// somewhere that skips that exclusion.
+let BrowserWindow, dialog, app, shell;
+try {
+  ({ BrowserWindow, dialog, app, shell } = require("electron"));
+} catch {
+  // Running outside Electron (e.g. server.cjs) — desktop-only handlers guard below.
+}
 const { makeWrap } = require("./wrap.cjs");
 const { AppError } = require("../lib/security.cjs");
+const { version: packageVersion } = require("../../package.json");
+
+function requireElectron(fnName) {
+  if (!dialog || !app) {
+    throw new AppError(`${fnName} is only available in the EduManage desktop app.`);
+  }
+}
 const dashboardService = require("../services/dashboardService.cjs");
 const reportService = require("../services/reportService.cjs");
 const searchService = require("../services/searchService.cjs");
@@ -47,6 +67,7 @@ function register(ipcMain, ctx) {
 
   // ---- Backup & restore ----
   ipcMain.handle("backup:create", wrap("backup.create", async (db, session) => {
+    requireElectron("Creating a backup via a save dialog");
     const win = ctx.getWin();
     const defaultName = `edumanage-backup-${new Date().toISOString().slice(0, 10)}.db`;
     const result = await dialog.showSaveDialog(win, {
@@ -62,6 +83,7 @@ function register(ipcMain, ctx) {
   ipcMain.handle("backup:lastBackup", wrap(null, (db) => backupService.lastBackup(db)));
   ipcMain.handle("backup:integrityCheck", wrap("backup.create", (db) => backupService.integrityCheck(db)));
   ipcMain.handle("backup:restore", wrap("backup.restore", async (db, session) => {
+    requireElectron("Restoring a backup via a file dialog");
     const win = ctx.getWin();
     const result = await dialog.showOpenDialog(win, {
       title: "Select Backup File to Restore",
@@ -83,6 +105,7 @@ function register(ipcMain, ctx) {
 
   // ---- File uploads (photos/documents) ----
   ipcMain.handle("files:pickAndStore", wrap(null, async (_db, _session, { kind = "image" } = {}) => {
+    requireElectron("Picking a file via a native dialog");
     const win = ctx.getWin();
     const filters = kind === "image"
       ? [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }]
@@ -97,6 +120,7 @@ function register(ipcMain, ctx) {
     return { canceled: false, path: destPath, fileName: path.basename(source) };
   }));
   ipcMain.handle("files:openExternal", wrap(null, async (_db, _s, filePath) => {
+    if (!shell) throw new AppError("Opening local files is only available in the EduManage desktop app.");
     if (!filePath || !fs.existsSync(filePath)) throw new AppError("File not found.");
     await shell.openPath(filePath);
     return { success: true };
@@ -107,7 +131,7 @@ function register(ipcMain, ctx) {
     const dbPath = ctx.getDbPath();
     const stat = fs.existsSync(dbPath) ? fs.statSync(dbPath) : null;
     return {
-      version: app.getVersion(),
+      version: app ? app.getVersion() : packageVersion,
       dataPath: ctx.getDataDir(),
       dbPath,
       dbSizeBytes: stat ? stat.size : 0,
@@ -118,6 +142,7 @@ function register(ipcMain, ctx) {
 
   // ---- Print to PDF (Electron's built-in renderer -> PDF) ----
   ipcMain.handle("print:exportPdf", wrap(null, async (_db, _s, { html, suggestedName = "document.pdf" } = {}) => {
+    requireElectron("Exporting a PDF via Electron's renderer");
     if (!html) throw new AppError("Nothing to export.");
     const win = ctx.getWin();
     const saveResult = await dialog.showSaveDialog(win, {
@@ -144,6 +169,7 @@ function register(ipcMain, ctx) {
   }));
 
   ipcMain.handle("print:openWindow", wrap(null, async (_db, _s, { html } = {}) => {
+    requireElectron("Opening a print window via Electron");
     if (!html) throw new AppError("Nothing to print.");
     const printWin = new BrowserWindow({
       width: 800, height: 900,
