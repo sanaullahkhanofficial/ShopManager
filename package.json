@@ -11,9 +11,11 @@
     "build:web": "vite build",
     "start": "electron .",
     "dist": "vite build && electron-builder --win --x64",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && for f in electron/db/*.cjs electron/lib/*.cjs electron/services/*.cjs electron/ipc/*.cjs; do node --check \"$f\" || exit 1; done",
+    "server": "node server.cjs",
+    "server:build-and-start": "vite build && node server.cjs",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check server.cjs && for f in electron/db/*.cjs electron/lib/*.cjs electron/services/*.cjs electron/ipc/*.cjs; do node --check \"$f\" || exit 1; done",
     "typecheck": "tsc --noEmit",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "node scripts/postinstall.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -27,7 +29,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "express": "^4.22.2",
+    "express-session": "^1.19.0",
     "lucide-react": "^0.468.0",
+    "multer": "^2.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
@@ -57,10 +62,32 @@
   "build": {
     "appId": "com.edumanage.desktop",
     "productName": "EduManage",
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
-    "directories": {"output": "release"},
-    "win": {"target": [{"target": "nsis", "arch": ["x64"]}], "artifactName": "EduManage-Setup-${version}.${ext}"},
-    "nsis": {"oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true},
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "EduManage-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
     "npmRebuild": true
   }
 }

@@ -1,18 +1,41 @@
-// Thin typed wrapper around the contextBridge `window.api.invoke` call.
-// Every IPC handler in electron/ipc/*.cjs returns { success, data } or
-// { success: false, error }. This wrapper unwraps that so callers can use
-// plain async/await and try/catch with a user-friendly Error message.
+// Thin typed wrapper around the transport that reaches electron/ipc/*.cjs.
+// Every handler there returns { success, data } or { success: false, error }.
+// This wrapper unwraps that so callers can use plain async/await and
+// try/catch with a user-friendly Error message — regardless of whether the
+// app is running inside Electron (contextBridge IPC) or as a plain web app
+// served by server.cjs (fetch over HTTP). The same channel names and the
+// same `electron/services/*.cjs` business logic run in both cases.
 
 declare global {
   interface Window {
-    api: {
+    api?: {
       invoke: (channel: string, ...args: any[]) => Promise<{ success: boolean; data?: any; error?: string; code?: string }>;
     };
   }
 }
 
+/** True when running inside the Electron desktop shell (preload bridge present). */
+export const isElectron = typeof window !== "undefined" && !!window.api;
+
+async function invoke(channel: string, ...args: any[]): Promise<{ success: boolean; data?: any; error?: string }> {
+  if (isElectron) return window.api!.invoke(channel, ...args);
+  const res = await fetch("/api/invoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ channel, args }),
+  });
+  if (!res.ok && res.status !== 200) {
+    // Network/server-level failure (not a business-logic error) — surface plainly.
+    let msg = `Request failed (${res.status})`;
+    try { const body = await res.json(); if (body?.error) msg = body.error; } catch { /* ignore */ }
+    return { success: false, error: msg };
+  }
+  return res.json();
+}
+
 export async function call<T = any>(channel: string, ...args: any[]): Promise<T> {
-  const result = await window.api.invoke(channel, ...args);
+  const result = await invoke(channel, ...args);
   if (!result || result.success !== true) {
     throw new Error(result?.error || "Something went wrong. Please try again.");
   }
@@ -233,19 +256,93 @@ export const api = {
   notifications: { list: () => call("notifications:list") },
   audit: { list: (params?: any) => call("audit:list", params) },
   backup: {
-    create: () => call("backup:create"),
+    // Desktop: main process writes the file wherever the user picks via a
+    // native dialog. Web: the server streams the database file and the
+    // browser downloads it — same underlying backupService, same audit trail.
+    create: async () => {
+      if (isElectron) return call("backup:create");
+      const res = await fetch("/api/backup/export", { credentials: "include" });
+      if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || "Backup failed."); }
+      const blob = await res.blob();
+      const filename = res.headers.get("X-Backup-Filename") || `edumanage-backup-${new Date().toISOString().slice(0, 10)}.db`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      return { canceled: false, backup: { path: filename, sizeBytes: blob.size } };
+    },
     history: () => call("backup:history"),
     lastBackup: () => call("backup:lastBackup"),
     integrityCheck: () => call("backup:integrityCheck"),
-    restore: () => call("backup:restore"),
+    // Desktop: pick a file via native dialog, then relaunch. Web: pick a file
+    // via a hidden <input type=file>, upload it, and the server swaps the
+    // database in place — the caller should reload the page afterward so a
+    // fresh session/state is fetched (any restored users invalidate the
+    // current login, same as the desktop restart).
+    restore: async () => {
+      if (isElectron) return call("backup:restore");
+      const file = await pickLocalFile(".db");
+      if (!file) return { canceled: true };
+      const form = new FormData();
+      form.append("backup", file);
+      const res = await fetch("/api/backup/import", { method: "POST", credentials: "include", body: form });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body.success !== true) throw new Error(body.error || "Restore failed.");
+      return { canceled: false, restarting: true };
+    },
   },
   files: {
-    pickAndStore: (kind?: "image" | "document") => call("files:pickAndStore", { kind }),
-    openExternal: (filePath: string) => call("files:openExternal", filePath),
+    pickAndStore: (kind?: "image" | "document") => {
+      if (isElectron) return call("files:pickAndStore", { kind });
+      throw new Error("File uploads from this screen are only available in the EduManage desktop app.");
+    },
+    openExternal: (filePath: string) => {
+      if (isElectron) return call("files:openExternal", filePath);
+      throw new Error("Opening local files is only available in the EduManage desktop app.");
+    },
   },
   appInfo: () => call("app:info"),
   print: {
-    exportPdf: (html: string, suggestedName?: string) => call("print:exportPdf", { html, suggestedName }),
-    openWindow: (html: string) => call("print:openWindow", { html }),
+    // Desktop: Electron renders the HTML off-screen and writes a real PDF
+    // file via printToPDF(). Web: open the document in a new tab and invoke
+    // the browser's own print dialog, where "Save as PDF" produces the same
+    // result using the browser's native PDF renderer — still a real,
+    // user-driven PDF/print, not a screenshot.
+    exportPdf: async (html: string, suggestedName?: string) => {
+      if (isElectron) return call("print:exportPdf", { html, suggestedName });
+      webPrintWindow(html);
+      return { canceled: false, path: suggestedName };
+    },
+    openWindow: async (html: string) => {
+      if (isElectron) return call("print:openWindow", { html });
+      webPrintWindow(html);
+      return { success: true };
+    },
   },
 };
+
+/** Opens `html` in a new browser tab/window and triggers the print dialog once it has laid out. */
+function webPrintWindow(html: string) {
+  const win = window.open("", "_blank", "width=900,height=1000");
+  if (!win) throw new Error("Please allow pop-ups for this site to print or export documents.");
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => setTimeout(() => win.print(), 200);
+}
+
+/** Prompts the user to pick a local file via a throwaway <input type=file>. Resolves to null if canceled. */
+function pickLocalFile(accept: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.onchange = () => resolve(input.files?.[0] || null);
+    input.oncancel = () => resolve(null);
+    // Some browsers never fire change/cancel if the picker is dismissed via Escape;
+    // resolving on window focus-return after a delay would be unreliable, so we
+    // accept that a canceled picker simply leaves the caller awaiting until the
+    // user tries again — acceptable for this occasional admin action.
+    input.click();
+  });
+}

@@ -8,7 +8,7 @@ import {
 import { useAuthStore } from "@/store/authStore";
 import { useUiStore } from "@/store/uiStore";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, isElectron } from "@/lib/api";
 import { ChangePasswordDialog } from "@/pages/settings/ChangePasswordDialog";
 
 export function Topbar() {
@@ -35,7 +35,7 @@ export function Topbar() {
 
       <div className="ml-auto flex items-center gap-2">
         <span className="hidden items-center gap-1 rounded-full bg-success/10 px-2 py-1 text-xs font-medium text-success sm:flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-success" /> Local Database
+          <span className="h-1.5 w-1.5 rounded-full bg-success" /> {isElectron ? "Local Database" : "Server Connected"}
         </span>
 
         <Button variant="ghost" size="icon" className="relative" onClick={() => navigate("/notifications")}>

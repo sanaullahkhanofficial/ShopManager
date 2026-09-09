@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { api } from "@/lib/api";
+import { api, isElectron } from "@/lib/api";
 import { toast } from "sonner";
 
 export function BackupPage() {
@@ -38,15 +38,18 @@ export function BackupPage() {
   async function restore() {
     const ok = await confirm({
       title: "Restore from backup?",
-      description: "This will replace your current database with the selected backup file and restart the application. A safety backup of your current data will be taken first.",
-      destructive: true, confirmLabel: "Restore & Restart",
+      description: isElectron
+        ? "This will replace your current database with the selected backup file and restart the application. A safety backup of your current data will be taken first."
+        : "This will replace the current database with the selected backup file and sign everyone out. A safety backup of the current data will be taken first.",
+      destructive: true, confirmLabel: isElectron ? "Restore & Restart" : "Restore & Sign Out",
     });
     if (!ok) return;
     setRestoring(true);
     try {
       const res = await api.backup.restore();
       if (res.canceled) { setRestoring(false); return; }
-      toast.success("Restoring — the application will restart now.");
+      toast.success(isElectron ? "Restoring — the application will restart now." : "Restore complete — reloading…");
+      if (!isElectron) setTimeout(() => window.location.reload(), 1200);
     } catch (err: any) { toast.error(err.message); setRestoring(false); }
   }
 

@@ -1,8 +1,14 @@
 # EduManage — School Management System / School ERP
 
-An offline-first, desktop School Management System for private schools, government
+An offline-first School Management System for private schools, government
 schools, academies, colleges and multi-campus institutions. Real SQLite database,
 enforced role-based permissions, and end-to-end financial integrity — not a UI mockup.
+
+Ships as **two deployment targets from one codebase**:
+- an **Electron desktop app** (offline-first, native installer), and
+- a **plain Node/Express web server** (`server.cjs`) exposing the exact same
+  business logic over HTTP, so it can be deployed to a real host and opened
+  in any browser at a public URL — see **[DEPLOY.md](DEPLOY.md)** for that.
 
 ## Tech stack
 
@@ -75,12 +81,16 @@ buttons that silently do nothing.
 
 ```bash
 npm install
-npm run dev        # Vite dev server + Electron
-npm run typecheck  # tsc --noEmit
-npm run check      # syntax-checks every Electron main-process file
-npm run build:web  # production Vite build
-npm run dist       # Windows x64 NSIS installer (run on/for Windows)
+npm run dev                    # Vite dev server + Electron (desktop)
+npm run typecheck              # tsc --noEmit
+npm run check                  # syntax-checks every Electron/server main-process file
+npm run build:web              # production Vite build
+npm run dist                   # Windows x64 NSIS installer (run on/for Windows)
+npm run server:build-and-start # build the frontend + start the web server on http://localhost:3000
 ```
+
+See **[DEPLOY.md](DEPLOY.md)** to put the web server behind a real public URL
+(Render, Railway, Fly.io/Docker, or your own VPS).
 
 ## One-click installer build
 
