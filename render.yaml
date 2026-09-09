@@ -1,0 +1,29 @@
+# Render Blueprint — lets you deploy EduManage with one click instead of
+# typing build/start commands and env vars into Render's dashboard by hand.
+# Usage: https://render.com/deploy?repo=<this-repo's-GitHub-URL>
+#
+# This defaults to the FREE web service plan so the first deploy costs $0 —
+# but Render's free tier has no persistent disk, so the SQLite database is
+# wiped whenever the free instance restarts/redeploys/sleeps. That's fine
+# for kicking the tires. For real, durable data, upgrade the service to the
+# "starter" plan (~$7/mo at time of writing) and uncomment the `disk:` block
+# below, then set DATA_DIR to the disk's mount path — see DEPLOY.md.
+services:
+  - type: web
+    name: edumanage
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build:web
+    startCommand: node server.cjs
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
+    # disk:
+    #   name: edumanage-data
+    #   mountPath: /opt/render/project/src/data
+    #   sizeGB: 1

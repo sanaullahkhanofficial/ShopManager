@@ -15,9 +15,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
       - run: npm run check
       - run: npm run dist -- --publish never
       - uses: actions/upload-artifact@v4
         with:
-          name: ShopManager-Windows-Installer
+          name: EduManage-Windows-Installer
           path: release/*.exe
