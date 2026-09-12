@@ -1,0 +1,55 @@
+name: Deploy Starbucks Nutrition Calculator to Hostinger
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "starbucks-nutrition-calculator/**"
+      - ".github/workflows/deploy-starbucks-calculator.yml"
+
+defaults:
+  run:
+    working-directory: starbucks-nutrition-calculator
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run format:check
+
+      - run: npm test
+
+      - name: Build (static site)
+        run: npm run build
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+
+      # Sanity check: fail the deploy rather than upload an empty/missing dist/.
+      - name: Verify build output
+        run: test -f dist/index.html
+
+      - name: Deploy to Hostinger via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_SERVER }}
+          username: ${{ secrets.HOSTINGER_FTP_USERNAME }}
+          password: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
+          protocol: ${{ vars.HOSTINGER_FTP_PROTOCOL || 'ftps' }}
+          local-dir: starbucks-nutrition-calculator/dist/
+          server-dir: ${{ vars.HOSTINGER_SERVER_DIR || '/public_html/' }}
+          # Never touch anything Hostinger or another app placed outside this site's own output;
+          # this workflow only ever uploads what `npm run build` just produced.
+          exclude: |
+            **/.git*
+            **/.git*/**

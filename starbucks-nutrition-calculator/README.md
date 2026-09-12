@@ -124,6 +124,28 @@ Node.js, a Hostinger VPS, or any server-side runtime.
 No Node.js, database, or backend process is required on the Hostinger server — everything the calculator needs (the dataset, the calculation
 engine, and the interactive UI) is bundled into the static files at build time and runs in the visitor's browser.
 
+### Automatic deploys via GitHub Actions (optional)
+
+[`.github/workflows/deploy-starbucks-calculator.yml`](../.github/workflows/deploy-starbucks-calculator.yml) builds this project and uploads
+`dist/` to Hostinger over FTP/FTPS every time `starbucks-nutrition-calculator/**` changes on `main` (it never touches the `ShopManager` POS
+app's own Windows-installer workflow, and it runs lint/format-check/tests before every deploy so a broken build never reaches Hostinger). It's
+disabled by default in the sense that it simply fails cleanly until you configure it:
+
+1. In the GitHub repo, go to **Settings → Secrets and variables → Actions** and add these **secrets**:
+   - `HOSTINGER_FTP_SERVER` — your FTP host (hPanel → Files → FTP Accounts)
+   - `HOSTINGER_FTP_USERNAME`
+   - `HOSTINGER_FTP_PASSWORD`
+2. Optionally add these **variables** (same screen, "Variables" tab) if the defaults don't match your setup:
+   - `SITE_URL` — your real domain, e.g. `https://yourdomain.com` (used for canonical/OG URLs and the sitemap; falls back to the
+     `https://example.com` placeholder if unset)
+   - `HOSTINGER_SERVER_DIR` — the remote path to upload into (defaults to `/public_html/`; use something like
+     `/domains/yourdomain.com/public_html/` for an addon domain)
+   - `HOSTINGER_FTP_PROTOCOL` — `ftps` (default), `ftp`, or `sftp`, whichever your Hostinger plan expects
+3. Push to `main` (or run the workflow manually from the **Actions** tab) and watch the **Deploy Starbucks Nutrition Calculator to Hostinger**
+   run.
+
+Never commit real FTP credentials to this repository — only ever add them as GitHub Actions secrets.
+
 ## Project structure
 
 ```
