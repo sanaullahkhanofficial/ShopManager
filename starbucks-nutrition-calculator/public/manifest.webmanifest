@@ -1,0 +1,18 @@
+{
+  "name": "Starbucks Nutrition Calculator",
+  "short_name": "SB Nutrition",
+  "description": "Independent U.S. Starbucks nutrition calculator. Not affiliated with Starbucks Corporation.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbf7ef",
+  "theme_color": "#0f3d2e",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

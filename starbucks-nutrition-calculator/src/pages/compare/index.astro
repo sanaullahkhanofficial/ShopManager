@@ -1,0 +1,22 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { Compare } from '@/components/Compare/Compare';
+import { DATABASE } from '@/data/us';
+---
+
+<BaseLayout
+  title="Compare Starbucks Drinks | Starbucks Nutrition Calculator"
+  description="Compare calories, sugar, protein, fat, carbs, sodium and caffeine between any two Starbucks drinks, by size and milk."
+  path="/compare/"
+>
+  <section class="section">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Compare</p>
+        <h1>Compare two Starbucks drinks</h1>
+        <p>Pick a drink, size and milk on each side to see the nutrition difference.</p>
+      </div>
+      <Compare client:load database={DATABASE} />
+    </div>
+  </section>
+</BaseLayout>

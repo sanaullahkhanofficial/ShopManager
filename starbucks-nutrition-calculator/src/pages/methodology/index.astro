@@ -1,0 +1,75 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { DATA_VERSION, LAST_REVIEWED } from '@/data/us/meta';
+---
+
+<BaseLayout
+  title="Methodology | Starbucks Nutrition Calculator"
+  description="How this independent Starbucks nutrition calculator sources data, calculates customizations, and where its data is incomplete."
+  path="/methodology/"
+>
+  <section class="section">
+    <div class="container" style="max-width:820px;">
+      <div class="section__heading">
+        <p class="section__eyebrow">Methodology</p>
+        <h1>Data &amp; methodology</h1>
+        <p>Dataset version <strong>{DATA_VERSION}</strong>, last reviewed <strong>{LAST_REVIEWED}</strong>.</p>
+      </div>
+
+      <h2>Independence</h2>
+      <p>
+        This is an independent informational tool and is not affiliated with, endorsed by, or sponsored by Starbucks Corporation. Product names are used only to
+        identify the drinks this tool calculates nutrition for.
+      </p>
+
+      <h2>U.S. data scope</h2>
+      <p>This tool is U.S.-focused only. It does not mix U.S. figures with Ireland, UK, EU, Canada or other regional Starbucks nutrition data.</p>
+
+      <h2>How figures were compiled</h2>
+      <p>
+        The nutrition figures in this dataset were compiled from publicly available Starbucks nutrition data via third-party nutrition trackers and aggregator
+        sites, because the environment used to assemble this dataset could not reach starbucks.com directly at compile time. Every drink and size record carries
+        a <code>sourceUrl</code> pointing to the specific Starbucks nutrition page it should be checked against, and a <code>status</code> field of <code
+          >needs-review</code
+        > rather than <code>verified</code> until that check happens. No figure in this dataset has been marked <code>verified</code> without someone confirming it
+        against starbucks.com directly.
+      </p>
+
+      <h2>Customization methodology</h2>
+      <p>
+        Every drink defines which sizes, milks and add-ins it actually supports; the calculator will not let you select or calculate an unsupported combination.
+        Where a customization has a verified nutrition effect (for example, one espresso shot, which is consistently reported as about 5 calories and 75mg of
+        caffeine), that effect is applied deterministically. Where it does not &mdash; most visibly, per-pump syrup and sauce nutrition &mdash; the calculator
+        says &ldquo;ingredient-level calculation unavailable for this customization&rdquo; rather than invent a number.
+      </p>
+
+      <h2>Caffeine methodology</h2>
+      <p>
+        Caffeine figures come from the same per-drink sources as other nutrition fields, and may be approximate where the source data itself identifies them as
+        approximate.
+      </p>
+
+      <h2>Allergen limitations</h2>
+      <p>
+        Allergen information reflects the primary allergens commonly associated with an ingredient (for example, milk or tree nuts). It is not a substitute for
+        current official Starbucks allergen information and does not account for cross-contact in-store. Never treat an item as &ldquo;safe&rdquo; for an
+        allergy based on this tool.
+      </p>
+
+      <h2>Update process</h2>
+      <p>
+        Data updates are tracked with a <code>dataVersion</code> and a <code>lastReviewed</code> date per record, and summarized in the <a href="/changelog/"
+          >changelog</a
+        >. Records are never silently overwritten with unreviewed guesses.
+      </p>
+
+      <h2>Limitations</h2>
+      <ul>
+        <li>Only a curated set of drinks is covered so far; coverage will grow over time.</li>
+        <li>Milk-substitution and syrup/sauce pump-level nutrition deltas are not yet verified for most drinks.</li>
+        <li>Food items and seasonal drinks are not yet in the dataset.</li>
+        <li>Figures reflect standard recipes; in-store preparation can vary.</li>
+      </ul>
+    </div>
+  </section>
+</BaseLayout>

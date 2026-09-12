@@ -1,0 +1,103 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { DATABASE, DRINK_BY_SLUG } from '@/data/us';
+import { formatValue } from '@/lib/format';
+
+export function getStaticPaths() {
+  return DATABASE.drinks.map((drink) => ({ params: { slug: drink.slug } }));
+}
+
+const { slug } = Astro.params;
+const drink = slug ? DRINK_BY_SLUG[slug] : undefined;
+
+if (!drink) {
+  return Astro.redirect('/drinks/');
+}
+
+const size = drink.sizes.find((s) => s.id === drink.defaultSizeId)!;
+const rows: { label: string; key: keyof typeof size.nutrition; unit: string }[] = [
+  { label: 'Calories', key: 'calories', unit: '' },
+  { label: 'Total Fat', key: 'totalFatG', unit: 'g' },
+  { label: 'Saturated Fat', key: 'saturatedFatG', unit: 'g' },
+  { label: 'Trans Fat', key: 'transFatG', unit: 'g' },
+  { label: 'Cholesterol', key: 'cholesterolMg', unit: 'mg' },
+  { label: 'Sodium', key: 'sodiumMg', unit: 'mg' },
+  { label: 'Carbohydrates', key: 'carbohydratesG', unit: 'g' },
+  { label: 'Fiber', key: 'fiberG', unit: 'g' },
+  { label: 'Sugar', key: 'sugarG', unit: 'g' },
+  { label: 'Protein', key: 'proteinG', unit: 'g' },
+  { label: 'Caffeine', key: 'caffeineMg', unit: 'mg' },
+];
+
+const structuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Drinks', item: 'https://example.com/drinks/' },
+      { '@type': 'ListItem', position: 2, name: drink.name, item: `https://example.com/drinks/${drink.slug}/` },
+    ],
+  },
+];
+---
+
+<BaseLayout
+  title={`${drink.name} Nutrition Facts (${size.name}) | Starbucks Nutrition Calculator`}
+  description={`Calories, sugar, protein, fat and caffeine for a ${size.name} Starbucks ${drink.name}, plus supported customizations.`}
+  path={`/drinks/${drink.slug}/`}
+  structuredData={structuredData}
+>
+  <section class="section">
+    <div class="container">
+      <nav aria-label="Breadcrumb" style="margin-bottom:16px;font-size:0.85rem;">
+        <a href="/drinks/">Drinks</a> / <span>{drink.name}</span>
+      </nav>
+      <div class="section__heading">
+        <p class="section__eyebrow">{drink.subcategory ?? drink.category}</p>
+        <h1>{drink.name}</h1>
+        <p>{drink.description}</p>
+      </div>
+
+      <div class="calculator" style="grid-template-columns: 1fr 340px;">
+        <div>
+          <h2>Nutrition Facts &mdash; {size.name} ({size.fluidOz} fl oz)</h2>
+          <table style="width:100%;border-collapse:collapse;max-width:480px;">
+            <tbody>
+              {
+                rows.map((row) => (
+                  <tr style="border-bottom:1px solid var(--color-border);">
+                    <td style="padding:8px 0;">{row.label}</td>
+                    <td style="padding:8px 0;text-align:right;font-weight:600;">{formatValue(size.nutrition[row.key], row.unit ? ` ${row.unit}` : '')}</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+
+          {
+            drink.allergens.length > 0 && (
+              <p style="margin-top:16px;">
+                <strong>Contains:</strong> {drink.allergens.join(', ')}. Ingredient information only &mdash; refer to current official Starbucks product
+                information for allergy or medical decisions.
+              </p>
+            )
+          }
+
+          <p style="margin-top:16px;color:var(--color-ink-500);font-size:0.85rem;">
+            Data status: {drink.source.status}. {drink.source.note}
+            {
+              drink.source.sourceUrl && (
+                <>
+                  Reference: <a href={drink.source.sourceUrl}>{drink.source.sourceUrl}</a>.
+                </>
+              )
+            }
+          </p>
+        </div>
+        <div>
+          <a class="btn btn--primary btn--large" href={`/?drink=${drink.id}#calculator`} style="width:100%;">Customize in Calculator</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,74 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+const faqs = [
+  [
+    'What is a Starbucks nutrition calculator?',
+    'A tool that estimates calories and other nutrition facts for a Starbucks drink based on its recipe, size and the customizations you choose.',
+  ],
+  [
+    'Can I calculate a custom Starbucks drink?',
+    'Yes. Choose a drink, then adjust size, milk, espresso shots and other supported customizations to see how the nutrition changes.',
+  ],
+  [
+    'How accurate is the calculator?',
+    'Figures are based on available U.S. standard-recipe data and supported customization rules, not a live measurement. Actual prepared nutrition may vary. We never fabricate a number: where verified data isn’t available, we say so instead of guessing.',
+  ],
+  [
+    'Do Starbucks calories change by size?',
+    'Yes, generally. This calculator only lets you select sizes we have verified nutrition data for, for each specific drink.',
+  ],
+  [
+    'Does changing milk change calories?',
+    'Yes in principle, but a verified, drink-specific milk-substitution number isn’t available for every drink in this dataset yet. When that’s the case we say so in your result rather than estimate it.',
+  ],
+  [
+    'Can I calculate Starbucks caffeine?',
+    'Yes, caffeine is shown for every calculated drink, including the effect of adding or removing espresso shots where applicable.',
+  ],
+  [
+    'Does cold foam add calories?',
+    'Likely, but we don’t yet have verified per-serving cold foam nutrition in this dataset, so selecting it will not silently change your totals.',
+  ],
+  ['Can I calculate Starbucks food?', 'Not yet. The architecture supports food items, but no verified U.S. food nutrition data is in this dataset yet.'],
+  ['Are seasonal drinks included?', 'Not yet. Seasonal drinks will be added once verified nutrition data is available.'],
+  [
+    'Is this affiliated with Starbucks?',
+    'No. This is an independent informational tool and is not affiliated with, endorsed by, or sponsored by Starbucks Corporation.',
+  ],
+];
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+};
+---
+
+<BaseLayout
+  title="FAQ | Starbucks Nutrition Calculator"
+  description="Answers to common questions about accuracy, customization, caffeine, allergens and coverage in this independent Starbucks nutrition calculator."
+  path="/faq/"
+  structuredData={structuredData}
+>
+  <section class="section">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">FAQ</p>
+        <h1>Frequently asked questions</h1>
+      </div>
+      <div class="faq">
+        {
+          faqs.map(([q, a]) => (
+            <details class="faq-item">
+              <summary>
+                {q} <span aria-hidden="true">+</span>
+              </summary>
+              <p>{a}</p>
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</BaseLayout>

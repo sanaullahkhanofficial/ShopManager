@@ -1,0 +1,563 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import DrinkCard from '@/components/DrinkCard.astro';
+import { Calculator } from '@/components/Calculator/Calculator';
+import { DATABASE } from '@/data/us';
+import { applyFilter, QUICK_FILTERS } from '@/lib/filters';
+import { formatValue } from '@/lib/format';
+import { DATA_VERSION, LAST_REVIEWED } from '@/data/us/meta';
+
+const popular = DATABASE.drinks.slice(0, 6);
+const lowCalorie = applyFilter('under-200-cal', DATABASE.drinks);
+const lowSugar = applyFilter('low-sugar', DATABASE.drinks);
+const highProtein = applyFilter('high-protein', DATABASE.drinks);
+const dairyFree = applyFilter('dairy-free', DATABASE.drinks);
+const caffeineFree = applyFilter('caffeine-free', DATABASE.drinks);
+const byCaffeine = [...DATABASE.drinks].sort((a, b) => {
+  const av = a.sizes.find((s) => s.id === a.defaultSizeId)?.nutrition.caffeineMg ?? -1;
+  const bv = b.sizes.find((s) => s.id === b.defaultSizeId)?.nutrition.caffeineMg ?? -1;
+  return bv - av;
+});
+
+const compareLatte = DATABASE.drinks.find((d) => d.id === 'caffe-latte')!.sizes.find((s) => s.id === 'grande')!.nutrition;
+const compareCapp = DATABASE.drinks.find((d) => d.id === 'cappuccino')!.sizes.find((s) => s.id === 'grande')!.nutrition;
+const compareRows = [
+  { label: 'Calories', latte: compareLatte.calories, capp: compareCapp.calories },
+  { label: 'Sugar (g)', latte: compareLatte.sugarG, capp: compareCapp.sugarG },
+  { label: 'Protein (g)', latte: compareLatte.proteinG, capp: compareCapp.proteinG },
+  { label: 'Caffeine (mg)', latte: compareLatte.caffeineMg, capp: compareCapp.caffeineMg },
+];
+
+const structuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Starbucks Nutrition Calculator',
+    url: 'https://example.com/',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: 'https://example.com/drinks/?q={search_term_string}',
+      'query-input': 'required name=search_term_string',
+    },
+  },
+];
+---
+
+<BaseLayout
+  title="Starbucks Nutrition Calculator | Calories, Sugar, Protein & Caffeine"
+  description="Calculate calories, sugar, protein, carbs, fat, fiber, sodium and caffeine for Starbucks drinks and supported customizations. Independent, U.S.-focused nutrition tool."
+  path="/"
+  structuredData={structuredData}
+>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container hero__inner">
+      <div>
+        <p class="section__eyebrow">Independent &middot; U.S. Menu Data</p>
+        <h1>Build Your Starbucks Drink. See the Nutrition.</h1>
+        <p class="hero__sub">
+          Calculate calories, sugar, protein, caffeine, carbs, fat and more for your selected Starbucks drink and supported customizations.
+        </p>
+        <div class="hero__ctas">
+          <a class="btn btn--primary btn--large" href="#calculator">Calculate My Drink</a>
+          <a class="btn btn--secondary btn--large" href="/drinks/">Browse Drinks</a>
+        </div>
+        <ul class="hero__trust">
+          <li>&#10003; U.S. menu data</li>
+          <li>&#10003; Standard-recipe information</li>
+          <li>&#10003; Customization-aware</li>
+          <li>&#10003; Regularly reviewed</li>
+        </ul>
+        <p class="hero__disclaimer">
+          This is an independent informational tool, not affiliated with, endorsed by, or sponsored by Starbucks Corporation. Calculations are based on
+          available U.S. standard-recipe/product data and supported customization rules; actual prepared nutrition may vary.
+        </p>
+      </div>
+      <div
+        aria-hidden="true"
+        style="background:var(--color-white);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:32px;box-shadow:var(--shadow-md);"
+      >
+        <p class="section__eyebrow">Grande Caffè Latte</p>
+        <p style="font-family:var(--font-serif);font-size:2.5rem;font-weight:700;color:var(--color-green-900);margin:0;">190 cal</p>
+        <p style="color:var(--color-ink-500);">18g sugar &middot; 13g protein &middot; 150mg caffeine</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CALCULATOR -->
+  <section class="section" id="calculator-section">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Step 1&ndash;4</p>
+        <h2>Choose a drink, size and customizations to see nutrition</h2>
+      </div>
+      <Calculator client:load database={DATABASE} />
+    </div>
+  </section>
+
+  <!-- QUICK FILTERS -->
+  <section class="section section--tight" id="quick-filters">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Quick Filters</p>
+        <h2>Jump straight to what matters to you</h2>
+      </div>
+      <div class="filter-bar" id="quick-filter-bar">
+        {
+          QUICK_FILTERS.map((f) => {
+            const count = applyFilter(f.id, DATABASE.drinks).length;
+            return (
+              <a class="chip" href={`#${f.id}`} data-filter-id={f.id}>
+                {f.label} ({count})
+              </a>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import { track } from '@/lib/analytics';
+    document.getElementById('quick-filter-bar')?.addEventListener('click', (event) => {
+      const link = (event.target as HTMLElement).closest<HTMLElement>('[data-filter-id]');
+      if (link?.dataset.filterId) track({ name: 'filter_used', filterId: link.dataset.filterId });
+    });
+  </script>
+
+  <!-- POPULAR DRINKS -->
+  <section class="section section--tight" id="popular-drinks">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Popular Drinks</p>
+        <h2>A starting point for common orders</h2>
+        <p>Nutrition shown is for each drink&rsquo;s default recipe at its default size.</p>
+      </div>
+      <div class="card-grid">
+        {popular.map((drink) => <DrinkCard drink={drink} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section section--tight" id="how-it-works">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">How It Works</p>
+        <h2>Four steps to your nutrition</h2>
+      </div>
+      <div class="steps-grid">
+        <div class="step-card"><p class="step-card__number">1</p><h3>Choose Drink</h3><p>Search or browse by category.</p></div>
+        <div class="step-card"><p class="step-card__number">2</p><h3>Choose Size</h3><p>Only sizes with verified data for that drink are selectable.</p></div>
+        <div class="step-card"><p class="step-card__number">3</p><h3>Customize</h3><p>Milk, espresso shots, syrup, sauce, whip and more.</p></div>
+        <div class="step-card"><p class="step-card__number">4</p><h3>View Nutrition</h3><p>See the full nutrition panel, recalculated instantly.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHAT CHANGES CALORIES -->
+  <section class="section section--tight" id="what-changes-calories">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">What Changes Calories</p>
+        <h2>What actually changes the calories in a Starbucks drink?</h2>
+      </div>
+      <div class="info-grid">
+        <div class="info-card"><h3>Milk choice</h3><p>Dairy milks and plant-based milks carry different calories, fat and protein per serving.</p></div>
+        <div class="info-card"><h3>Size</h3><p>More fluid ounces generally means more milk, syrup and calories.</p></div>
+        <div class="info-card"><h3>Espresso shots</h3><p>Each shot adds a small, consistent amount of calories and about 75mg of caffeine.</p></div>
+        <div class="info-card">
+          <h3>Syrup, sauce &amp; whip</h3><p>
+            Sweeteners and toppings add sugar and calories; exact pump-level data is not always published, so we disclose when it is unavailable rather than
+            guess.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STARBUCKS SIZES -->
+  <section class="section section--tight" id="starbucks-sizes">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Starbucks Sizes</p>
+        <h2>Starbucks drink sizes explained</h2>
+        <p>Not every size is offered for every drink. The calculator only lets you pick sizes we have data for.</p>
+      </div>
+      <div class="info-grid">
+        <div class="info-card"><h3>Short</h3><p>8 fl oz &mdash; hot drinks only.</p></div>
+        <div class="info-card"><h3>Tall</h3><p>12 fl oz.</p></div>
+        <div class="info-card"><h3>Grande</h3><p>16 fl oz &mdash; most common size.</p></div>
+        <div class="info-card"><h3>Venti</h3><p>20 fl oz hot, 24 fl oz iced (varies by drink).</p></div>
+        <div class="info-card"><h3>Trenta</h3><p>30 fl oz &mdash; select cold drinks only.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MILK OPTIONS -->
+  <section class="section section--tight" id="milk-options">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Milk Options</p>
+        <h2>Milk options &amp; nutrition</h2>
+        <p>
+          Reference figures for an 8 fl oz serving of each milk on its own. These are shown for context; the calculator does not yet apply a verified,
+          drink-specific swap delta for every milk (see the note in your result panel when you change milk).
+        </p>
+      </div>
+      <div class="card-grid">
+        {
+          DATABASE.milks.map((milk) => (
+            <div class="info-card">
+              <h3>{milk.name}</h3>
+              <p style="color:var(--color-ink-500);font-size:0.85rem;">{milk.kind === 'dairy' ? 'Dairy' : 'Plant-based'}</p>
+              <div class="drink-card__stats">
+                <span>{formatValue(milk.referenceNutritionPer8Oz?.calories ?? null, ' cal')}</span>
+                <span>{formatValue(milk.referenceNutritionPer8Oz?.totalFatG ?? null, 'g fat')}</span>
+                <span>{formatValue(milk.referenceNutritionPer8Oz?.proteinG ?? null, 'g protein')}</span>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- NUTRITION METRICS -->
+  <section class="section section--tight" id="nutrition-metrics">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Nutrition Metrics</p>
+        <h2>What nutrition information can you see?</h2>
+      </div>
+      <div class="info-grid">
+        {
+          ['Calories', 'Total Fat', 'Saturated Fat', 'Trans Fat', 'Cholesterol', 'Sodium', 'Carbohydrates', 'Fiber', 'Sugar', 'Protein', 'Caffeine'].map(
+            (m) => (
+              <div class="info-card">
+                <h3 style="font-size:1rem;">{m}</h3>
+              </div>
+            )
+          )
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- LOW-CALORIE OPTIONS -->
+  <section class="section section--tight" id="under-200-cal">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Low-Calorie Options</p>
+        <h2>Lower-calorie Starbucks options</h2>
+        <p>Default recipe, default size, under 200 calories. &ldquo;Lower-calorie&rdquo; describes calories only, not overall nutrition quality.</p>
+      </div>
+      {
+        lowCalorie.length > 0 ? (
+          <div class="card-grid">
+            {lowCalorie.map((drink) => (
+              <DrinkCard drink={drink} />
+            ))}
+          </div>
+        ) : (
+          <p>No drinks currently in our dataset match this filter.</p>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- LOW SUGAR OPTIONS -->
+  <section class="section section--tight" id="low-sugar">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Low Sugar</p>
+        <h2>Lower-sugar Starbucks options</h2>
+        <p>Default recipe, default size, 10g of sugar or less.</p>
+      </div>
+      {
+        lowSugar.length > 0 ? (
+          <div class="card-grid">
+            {lowSugar.map((drink) => (
+              <DrinkCard drink={drink} />
+            ))}
+          </div>
+        ) : (
+          <p>No drinks currently in our dataset match this filter.</p>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- HIGH-PROTEIN OPTIONS -->
+  <section class="section section--tight" id="high-protein">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">High-Protein Options</p>
+        <h2>Higher-protein Starbucks drinks</h2>
+        <p>Default recipe, default size, 10g of protein or more.</p>
+      </div>
+      {
+        highProtein.length > 0 ? (
+          <div class="card-grid">
+            {highProtein.map((drink) => (
+              <DrinkCard drink={drink} />
+            ))}
+          </div>
+        ) : (
+          <p>No drinks currently in our dataset match this filter.</p>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- DAIRY-FREE OPTIONS -->
+  <section class="section section--tight" id="dairy-free">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Dairy-Free / Plant-Based</p>
+        <h2>Dairy-free &amp; plant-based options</h2>
+        <p>Drinks that are not made with dairy milk by default. Always check current allergen information before ordering if you have an allergy.</p>
+      </div>
+      {
+        dairyFree.length > 0 ? (
+          <div class="card-grid">
+            {dairyFree.map((drink) => (
+              <DrinkCard drink={drink} />
+            ))}
+          </div>
+        ) : (
+          <p>No drinks currently in our dataset match this filter.</p>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- SUGAR & SYRUPS -->
+  <section class="section section--tight" id="sugar-syrups">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Sugar &amp; Syrups</p>
+        <h2>Sugar &amp; syrup guide</h2>
+      </div>
+      <p>
+        Sugar in Starbucks drinks generally comes from milk, sweetened syrups, sauces and fruit-based bases. Verified, per-pump nutrition for flavored syrups
+        and sauces is not available in this dataset yet, so the calculator discloses &ldquo;ingredient-level calculation unavailable&rdquo; rather than estimate
+        a number when you add syrup or sauce pumps.
+      </p>
+    </div>
+  </section>
+
+  <!-- CAFFEINE -->
+  <section class="section section--tight" id="caffeine">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Caffeine</p>
+        <h2>Starbucks caffeine, by drink</h2>
+        <p>Default recipe, default size, ranked by caffeine. Caffeine values may be approximate where source data identifies them as approximate.</p>
+      </div>
+      <div class="card-grid">
+        {byCaffeine.map((drink) => <DrinkCard drink={drink} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- CAFFEINE FREE OPTIONS -->
+  <section class="section section--tight" id="caffeine-free">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Caffeine Free</p>
+        <h2>Caffeine-free options</h2>
+        <p>Default recipe, default size, 0mg caffeine.</p>
+      </div>
+      {
+        caffeineFree.length > 0 ? (
+          <div class="card-grid">
+            {caffeineFree.map((drink) => (
+              <DrinkCard drink={drink} />
+            ))}
+          </div>
+        ) : (
+          <p>No drinks in our current dataset are verified at 0mg caffeine by default.</p>
+        )
+      }
+    </div>
+  </section>
+
+  <!-- SEASONAL DRINKS -->
+  <section class="section section--tight" id="seasonal">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Seasonal Drinks</p>
+        <h2>Seasonal drinks</h2>
+      </div>
+      <p>
+        Seasonal drink data is not currently available in this dataset. Check back after a future data update &mdash; see the <a href="/changelog/">changelog</a
+        >.
+      </p>
+    </div>
+  </section>
+
+  <!-- COMPARISONS -->
+  <section class="section section--tight" id="comparisons">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Comparisons</p>
+        <h2>Compare two drinks</h2>
+        <p>
+          Example comparison shown below. Want to compare any two drinks in this calculator, by size and milk? Try the
+          <a href="/compare/">full comparison tool</a>.
+        </p>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;min-width:480px;">
+          <thead>
+            <tr style="text-align:left;border-bottom:2px solid var(--color-border);">
+              <th style="padding:8px;"></th>
+              <th style="padding:8px;">Caffè Latte (Grande)</th>
+              <th style="padding:8px;">Cappuccino (Grande)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              compareRows.map((row) => (
+                <tr style="border-bottom:1px solid var(--color-border);">
+                  <td style="padding:8px;font-weight:600;">{row.label}</td>
+                  <td style="padding:8px;">{formatValue(row.latte)}</td>
+                  <td style="padding:8px;">{formatValue(row.capp)}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- STARBUCKS FOOD -->
+  <section class="section section--tight" id="food">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Starbucks Food</p>
+        <h2>Food nutrition</h2>
+        <p>
+          This calculator's interactive customization tools currently focus on beverages, but the dataset now includes reference nutrition for a starter set of
+          bakery items and sandwiches. See the full <a href="/food/">food nutrition</a> section for details.
+        </p>
+      </div>
+      <div class="card-grid">
+        {
+          DATABASE.foods.map((food) => (
+            <a class="info-card" href={`/food/${food.slug}/`}>
+              <h3 style="font-size:1.05rem;">{food.name}</h3>
+              <p style="color:var(--color-ink-500);font-size:0.85rem;">{food.servingSize}</p>
+              <div class="drink-card__stats">
+                <span>{formatValue(food.nutrition.calories, ' cal')}</span>
+                <span>{formatValue(food.nutrition.proteinG, 'g protein')}</span>
+              </div>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- GUIDES & ARTICLES -->
+  <section class="section section--tight" id="guides">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Guides &amp; Articles</p>
+        <h2>Guides</h2>
+      </div>
+      <div class="card-grid">
+        <a class="info-card" href="/methodology/"><h3>How we calculate nutrition</h3><p>Our methodology, data sources and limitations.</p></a>
+        <a class="info-card" href="/faq/"><h3>Frequently asked questions</h3><p>Common questions about accuracy, customization and coverage.</p></a>
+        <a class="info-card" href="/changelog/"><h3>Data changelog</h3><p>What changed, and when, in the underlying dataset.</p></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section" id="faq-preview">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">FAQ</p>
+        <h2>Frequently asked questions</h2>
+      </div>
+      <div class="faq">
+        <details class="faq-item">
+          <summary>What is a Starbucks nutrition calculator? <span aria-hidden="true">+</span></summary>
+          <p>A tool that estimates calories and other nutrition facts for a Starbucks drink based on its recipe, size and the customizations you choose.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Can I calculate a custom Starbucks drink? <span aria-hidden="true">+</span></summary>
+          <p>Yes. Choose a drink, then adjust size, milk, espresso shots and other supported customizations to see how the nutrition changes.</p>
+        </details>
+        <details class="faq-item">
+          <summary>How accurate is the calculator? <span aria-hidden="true">+</span></summary>
+          <p>
+            Figures are based on available U.S. standard-recipe data and supported customization rules, not a live measurement. Actual prepared nutrition may
+            vary. We never fabricate a number: where verified data isn&rsquo;t available, we say so instead of guessing.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Do Starbucks calories change by size? <span aria-hidden="true">+</span></summary>
+          <p>Yes, generally. This calculator only lets you select sizes we have verified nutrition data for, for each specific drink.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Does changing milk change calories? <span aria-hidden="true">+</span></summary>
+          <p>
+            Yes in principle, but a verified, drink-specific milk-substitution number isn&rsquo;t available for every drink in this dataset yet. When
+            that&rsquo;s the case we say so in your result rather than estimate it.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Can I calculate Starbucks caffeine? <span aria-hidden="true">+</span></summary>
+          <p>Yes, caffeine is shown for every calculated drink, including the effect of adding or removing espresso shots where applicable.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Does cold foam add calories? <span aria-hidden="true">+</span></summary>
+          <p>
+            Likely, but we don&rsquo;t yet have verified per-serving cold foam nutrition in this dataset, so selecting it will not silently change your totals.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Can I calculate Starbucks food? <span aria-hidden="true">+</span></summary>
+          <p>Not yet. The architecture supports food items, but no verified U.S. food nutrition data is in this dataset yet.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Are seasonal drinks included? <span aria-hidden="true">+</span></summary>
+          <p>Not yet. Seasonal drinks will be added once verified nutrition data is available.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Is this affiliated with Starbucks? <span aria-hidden="true">+</span></summary>
+          <p>No. This is an independent informational tool and is not affiliated with, endorsed by, or sponsored by Starbucks Corporation.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA & METHODOLOGY -->
+  <section class="section section--tight" id="data-methodology">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Data &amp; Methodology</p>
+        <h2>How this data is compiled</h2>
+      </div>
+      <p>
+        Dataset version <strong>{DATA_VERSION}</strong>, last reviewed <strong>{LAST_REVIEWED}</strong>. Every drink, size and customization record carries a
+        review status and a source reference. See the full <a href="/methodology/">methodology</a> for details, sources and known limitations.
+      </p>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="section">
+    <div class="container">
+      <div class="final-cta">
+        <h2>Ready to see your drink&rsquo;s nutrition?</h2>
+        <p>Build it exactly how you order it.</p>
+        <a class="btn btn--primary btn--large" href="#calculator">Calculate My Drink</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

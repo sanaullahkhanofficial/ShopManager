@@ -1,0 +1,39 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { DATABASE } from '@/data/us';
+import { formatValue } from '@/lib/format';
+---
+
+<BaseLayout
+  title="Starbucks Food Nutrition | Starbucks Nutrition Calculator"
+  description="Calories, sugar, protein, fat and sodium for Starbucks bakery items and sandwiches."
+  path="/food/"
+>
+  <section class="section">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Food</p>
+        <h1>Starbucks food nutrition</h1>
+        <p>
+          A starter set of bakery items and sandwiches. This calculator's interactive customization tools currently focus on beverages; food items are shown
+          here as reference nutrition for a single serving.
+        </p>
+      </div>
+      <div class="card-grid">
+        {
+          DATABASE.foods.map((food) => (
+            <a class="info-card" href={`/food/${food.slug}/`}>
+              <h3 style="font-size:1.05rem;">{food.name}</h3>
+              <p style="color:var(--color-ink-500);font-size:0.85rem;">{food.servingSize}</p>
+              <div class="drink-card__stats">
+                <span>{formatValue(food.nutrition.calories, ' cal')}</span>
+                <span>{formatValue(food.nutrition.sugarG, 'g sugar')}</span>
+                <span>{formatValue(food.nutrition.proteinG, 'g protein')}</span>
+              </div>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</BaseLayout>

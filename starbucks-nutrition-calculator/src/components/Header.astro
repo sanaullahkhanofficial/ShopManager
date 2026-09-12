@@ -1,0 +1,56 @@
+---
+const navItems = [
+  { href: '/#calculator', label: 'Calculator' },
+  { href: '/drinks/', label: 'Drinks' },
+  { href: '/food/', label: 'Food' },
+  { href: '/compare/', label: 'Compare' },
+  { href: '/#nutrition-metrics', label: 'Nutrition' },
+  { href: '/methodology/', label: 'Methodology' },
+  { href: '/faq/', label: 'FAQ' },
+];
+---
+
+<a class="visually-hidden" href="#main-content">Skip to main content</a>
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="site-header__logo" href="/">Starbucks Nutrition Calculator</a>
+    <nav aria-label="Primary">
+      <ul class="site-header__nav">
+        {
+          navItems.map((item) => (
+            <li>
+              <a href={item.href}>{item.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="site-header__actions">
+      <a class="btn btn--primary" href="/#calculator">Start Calculating</a>
+      <button class="site-header__menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu" id="mobile-menu-toggle">
+        &#9776;
+      </button>
+    </div>
+  </div>
+  <nav id="mobile-menu" class="container" hidden aria-label="Mobile">
+    <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:8px;padding-bottom:16px;">
+      {
+        navItems.map((item) => (
+          <li>
+            <a href={item.href}>{item.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+</header>
+
+<script>
+  const toggle = document.getElementById('mobile-menu-toggle');
+  const menu = document.getElementById('mobile-menu');
+  toggle?.addEventListener('click', () => {
+    const isOpen = !menu?.hidden;
+    if (menu) menu.hidden = isOpen;
+    toggle.setAttribute('aria-expanded', String(!isOpen));
+  });
+</script>

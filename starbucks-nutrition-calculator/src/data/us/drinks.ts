@@ -1,0 +1,571 @@
+import type { Drink, DrinkSize, SizeId } from '@/types/drink';
+import type { NutritionFacts, SourceInfo } from '@/types/nutrition';
+import { EMPTY_NUTRITION } from '@/types/nutrition';
+import { DATA_VERSION, LAST_REVIEWED } from './meta';
+
+function source(
+  sourceUrl: string,
+  note = 'Compiled from publicly available Starbucks nutrition data via third-party nutrition trackers; pending direct verification against the linked Starbucks nutrition page.'
+): SourceInfo {
+  return { status: 'needs-review', note, sourceUrl, dataVersion: DATA_VERSION, lastReviewed: LAST_REVIEWED };
+}
+
+/** For a record where no specific starbucks.com product URL could be found - never invent one. */
+function unsourced(note: string): SourceInfo {
+  return { status: 'needs-review', note, sourceUrl: null, dataVersion: DATA_VERSION, lastReviewed: LAST_REVIEWED };
+}
+
+function unavailableSize(id: SizeId, name: string, fluidOz: number): DrinkSize {
+  return {
+    id,
+    name,
+    fluidOz,
+    nutrition: EMPTY_NUTRITION,
+    available: false,
+    source: {
+      status: 'unavailable',
+      note: 'Not yet in the verified dataset for this drink.',
+      sourceUrl: null,
+      dataVersion: DATA_VERSION,
+      lastReviewed: LAST_REVIEWED,
+    },
+  };
+}
+
+function n(f: Partial<NutritionFacts>): NutritionFacts {
+  return { ...EMPTY_NUTRITION, ...f };
+}
+
+const SIZE_NAMES: Record<SizeId, [string, number]> = {
+  short: ['Short', 8],
+  tall: ['Tall', 12],
+  grande: ['Grande', 16],
+  venti: ['Venti', 20],
+  trenta: ['Trenta', 30],
+};
+
+interface KnownSize {
+  id: SizeId;
+  nutrition: NutritionFacts;
+  source: SourceInfo;
+}
+
+/** Builds a full size list: every id in `allSizeIds` gets an entry, using real data for the ones listed in `known` and an honest "unavailable" placeholder for the rest. */
+function multiSizes(known: KnownSize[], allSizeIds: SizeId[]): DrinkSize[] {
+  const knownIds = new Set(known.map((k) => k.id));
+  const knownEntries: DrinkSize[] = known.map((k) => {
+    const [name, oz] = SIZE_NAMES[k.id];
+    return { id: k.id, name, fluidOz: oz, nutrition: k.nutrition, available: true, source: k.source };
+  });
+  const others = allSizeIds.filter((s) => !knownIds.has(s)).map((s) => unavailableSize(s, SIZE_NAMES[s][0], SIZE_NAMES[s][1]));
+  return [...knownEntries, ...others].sort((a, b) => a.fluidOz - b.fluidOz);
+}
+
+/** Builds a full size list for the given hidden sizes plus one verified/needs-review size with real data. */
+function sizesWith(knownId: SizeId, nutrition: NutritionFacts, src: SourceInfo, otherSizeIds: SizeId[]): DrinkSize[] {
+  return multiSizes([{ id: knownId, nutrition, source: src }], otherSizeIds);
+}
+
+const HOT_ESPRESSO_SIZE_SET: SizeId[] = ['short', 'tall', 'grande', 'venti'];
+const ICED_ESPRESSO_SIZE_SET: SizeId[] = ['tall', 'grande', 'venti'];
+const COLD_BREW_SIZE_SET: SizeId[] = ['tall', 'grande', 'venti', 'trenta'];
+
+const fullEligibility = {
+  milk: true,
+  shots: true,
+  syrup: true,
+  sauce: false,
+  sweetener: true,
+  coldFoam: false,
+  whip: false,
+  topping: false,
+};
+
+export const DRINKS: Drink[] = [
+  {
+    id: 'caffe-latte',
+    slug: 'caffe-latte',
+    name: 'Caffè Latte',
+    category: 'latte',
+    subcategory: 'Hot Coffee',
+    description: 'Rich, full-bodied espresso balanced with steamed milk and a light layer of foam.',
+    aliases: ['latte', 'coffee latte'],
+    sizes: multiSizes(
+      [
+        {
+          id: 'grande',
+          nutrition: n({ calories: 190, totalFatG: 7, saturatedFatG: 4.5, carbohydratesG: 19, sugarG: 18, proteinG: 13, caffeineMg: 150 }),
+          source: source('https://www.starbucks.com/menu/product/407/hot/nutrition'),
+        },
+        {
+          id: 'venti',
+          nutrition: n({ calories: 250, sugarG: 23, proteinG: 16, caffeineMg: 150 }),
+          source: source(
+            'https://www.starbucks.com/menu/product/407/hot/nutrition',
+            'Fat/carb figures for this size were not reported consistently enough across sources to include; left unavailable rather than guessed.'
+          ),
+        },
+      ],
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 2,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: { ...fullEligibility, whip: false },
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/407/hot/nutrition'),
+    region: 'US',
+    milkVariants: {
+      nonfat: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 130, totalFatG: 0, carbohydratesG: 19, sugarG: 18, proteinG: 13, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with nonfat milk, as its own listed product (not a computed delta).'
+        ),
+      },
+      oat: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 230, totalFatG: 11.1, saturatedFatG: 2.5, sugarG: 15.9, proteinG: 6.1, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with oatmilk, as its own listed product (not a computed delta).'
+        ),
+      },
+      soy: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 210, totalFatG: 7.1, saturatedFatG: 1.9, sugarG: 19.9, proteinG: 12.8, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with soymilk, as its own listed product (not a computed delta).'
+        ),
+      },
+      coconut: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 140, totalFatG: 8, carbohydratesG: 15, sugarG: 13.6, proteinG: 7, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with coconutmilk, as its own listed product (not a computed delta).'
+        ),
+      },
+      almond: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 100, totalFatG: 6, carbohydratesG: 10, sugarG: 5, proteinG: 3, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Third-party sources disagree more than usual on this specific figure (some report a notably higher calorie count for almondmilk lattes); shown as reported by the source consistent with Starbucks’ own almondmilk nutrition profile, pending direct verification.'
+        ),
+      },
+    },
+  },
+  {
+    id: 'cappuccino',
+    slug: 'cappuccino',
+    name: 'Cappuccino',
+    category: 'cappuccino',
+    subcategory: 'Hot Coffee',
+    description: 'Dark, rich espresso topped with a deep layer of steamed milk foam.',
+    aliases: ['capp'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 140, totalFatG: 5, sodiumMg: 120, carbohydratesG: 14, sugarG: 12, proteinG: 9, caffeineMg: 150 }),
+      source('https://www.starbucks.com/menu/product/409/hot/nutrition'),
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 2,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: fullEligibility,
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/409/hot/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'caramel-macchiato',
+    slug: 'caramel-macchiato',
+    name: 'Caramel Macchiato',
+    category: 'macchiato',
+    subcategory: 'Hot Coffee',
+    description: 'Freshly steamed milk with vanilla-flavored syrup marked with espresso and topped with caramel drizzle.',
+    aliases: ['caramel mach', 'macchiato'],
+    sizes: multiSizes(
+      [
+        {
+          id: 'grande',
+          nutrition: n({ calories: 250, totalFatG: 7, saturatedFatG: 4.5, carbohydratesG: 35, sugarG: 33, proteinG: 10, caffeineMg: 150 }),
+          source: source('https://www.starbucks.com/menu/product/413/hot/nutrition'),
+        },
+        {
+          id: 'venti',
+          nutrition: n({ calories: 310, sugarG: 42, proteinG: 13, caffeineMg: 150 }),
+          source: source(
+            'https://www.starbucks.com/menu/product/413/hot/nutrition',
+            'Fat/carb figures for this size were not reported consistently enough across sources to include; left unavailable rather than guessed.'
+          ),
+        },
+      ],
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 2,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: fullEligibility,
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/413/hot/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'iced-caramel-macchiato',
+    slug: 'iced-caramel-macchiato',
+    name: 'Iced Caramel Macchiato',
+    category: 'macchiato',
+    subcategory: 'Iced Coffee',
+    description: 'Iced version of the Caramel Macchiato: milk, vanilla syrup, ice, espresso and caramel drizzle.',
+    aliases: ['iced caramel mach'],
+    sizes: multiSizes(
+      [
+        {
+          id: 'tall',
+          nutrition: n({ calories: 190, sugarG: 29, proteinG: 7 }),
+          source: source(
+            'https://www.starbucks.com/menu/product/413/iced/nutrition',
+            'Fat/carb/caffeine figures for this size were not reported consistently enough across sources to include; left unavailable rather than guessed.'
+          ),
+        },
+        {
+          id: 'grande',
+          nutrition: n({ calories: 250, totalFatG: 7, saturatedFatG: 4.5, sodiumMg: 150, carbohydratesG: 37, sugarG: 34, proteinG: 10, caffeineMg: 150 }),
+          source: source('https://www.starbucks.com/menu/product/413/iced/nutrition'),
+        },
+        {
+          id: 'venti',
+          nutrition: n({ calories: 350, sugarG: 49, proteinG: 13, caffeineMg: 225 }),
+          source: source(
+            'https://www.starbucks.com/menu/product/413/iced/nutrition',
+            'Fat/carb figures for this size were not reported consistently enough across sources to include; left unavailable rather than guessed.'
+          ),
+        },
+      ],
+      ICED_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 2,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: fullEligibility,
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/413/iced/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'caffe-americano',
+    slug: 'caffe-americano',
+    name: 'Caffè Americano',
+    category: 'americano',
+    subcategory: 'Espresso',
+    description: 'Espresso shots topped with hot water for a light layer of crema.',
+    aliases: ['americano'],
+    sizes: sizesWith(
+      'grande',
+      n({
+        calories: 15,
+        totalFatG: 0,
+        saturatedFatG: 0,
+        transFatG: 0,
+        cholesterolMg: 0,
+        sodiumMg: 10,
+        carbohydratesG: 2,
+        fiberG: 0,
+        sugarG: 0,
+        proteinG: 1,
+        caffeineMg: 225,
+      }),
+      source('https://www.starbucks.com/menu/product/406/hot/nutrition'),
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: null,
+    defaultEspressoShots: 3,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: { ...fullEligibility, milk: true },
+    allergens: [],
+    source: source('https://www.starbucks.com/menu/product/406/hot/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'cold-brew',
+    slug: 'cold-brew',
+    name: 'Cold Brew',
+    category: 'cold-brew',
+    subcategory: 'Cold Brew',
+    description: 'Slow-steeped, super-smooth cold brew served over ice, unsweetened.',
+    aliases: ['coldbrew'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 5, totalFatG: 0, sodiumMg: 15, carbohydratesG: 0, sugarG: 0, proteinG: 0, caffeineMg: 205 }),
+      source('https://www.starbucks.com/menu/product/2121255/iced/nutrition'),
+      COLD_BREW_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: null,
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { ...fullEligibility, shots: false, coldFoam: true },
+    allergens: [],
+    source: source('https://www.starbucks.com/menu/product/2121255/iced/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'pike-place-roast',
+    slug: 'pike-place-roast',
+    name: 'Pike Place Roast',
+    category: 'hot-coffee',
+    subcategory: 'Brewed Coffee',
+    description: 'A smooth, medium-roast brewed coffee with subtly rich flavor, served hot, black by default.',
+    aliases: ['pike place', 'brewed coffee'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 5, totalFatG: 0, carbohydratesG: 0 }),
+      source('https://www.starbucks.com/menu/product/480/hot/nutrition'),
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: null,
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { ...fullEligibility, shots: false },
+    allergens: [],
+    source: source(
+      'https://www.starbucks.com/menu/product/480/hot/nutrition',
+      'Calorie/fat/carb figures cross-referenced across sources; caffeine was not consistently reported and is left unavailable rather than estimated.'
+    ),
+    region: 'US',
+  },
+  {
+    id: 'caffe-mocha',
+    slug: 'caffe-mocha',
+    name: 'Caffè Mocha',
+    category: 'mocha',
+    subcategory: 'Hot Coffee',
+    description: 'Rich mocha sauce, espresso and steamed milk, topped with whipped cream.',
+    aliases: ['mocha'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 370, totalFatG: 15, saturatedFatG: 10, carbohydratesG: 43, sugarG: 35, proteinG: 14, caffeineMg: 175 }),
+      source('https://www.starbucks.com/menu/product/408/hot/nutrition'),
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 2,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: { ...fullEligibility, whip: true },
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/408/hot/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'chai-tea-latte',
+    slug: 'chai-tea-latte',
+    name: 'Chai Tea Latte',
+    category: 'chai',
+    subcategory: 'Tea',
+    description: 'Black tea infused with cinnamon, clove and other warming spices, combined with steamed milk.',
+    aliases: ['chai latte', 'chai'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 200, sugarG: 31, proteinG: 6, caffeineMg: 60 }),
+      source('https://www.starbucks.com/menu/product/466/hot/nutrition'),
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { ...fullEligibility, shots: false },
+    allergens: ['milk'],
+    source: source(
+      'https://www.starbucks.com/menu/product/466/hot/nutrition',
+      'Sources show some variation (200-240 kcal reported); the figure most recently cited as current Starbucks data was used.'
+    ),
+    region: 'US',
+  },
+  {
+    id: 'matcha-latte',
+    slug: 'matcha-latte',
+    name: 'Matcha Latte',
+    category: 'matcha',
+    subcategory: 'Tea',
+    description: 'Smooth and creamy matcha green tea sweetened and combined with milk.',
+    aliases: ['matcha'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 220, totalFatG: 6, saturatedFatG: 4, carbohydratesG: 31, fiberG: 1, sugarG: 29, proteinG: 11, caffeineMg: 65 }),
+      source('https://www.starbucks.com/menu/product/468/hot/nutrition'),
+      HOT_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { ...fullEligibility, shots: false },
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/468/hot/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'strawberry-acai-refresher',
+    slug: 'strawberry-acai-refresher',
+    name: 'Strawberry Açaí Refresher',
+    category: 'refreshers',
+    subcategory: 'Refreshers',
+    description: 'Sweet strawberry flavors accented by passion fruit and açaí notes, made with real fruit pieces, served with water and ice.',
+    aliases: ['pink drink base', 'strawberry refresher'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 90, sodiumMg: 15, carbohydratesG: 23, fiberG: 1, sugarG: 21, proteinG: 0, totalFatG: 0, caffeineMg: 50 }),
+      source('https://www.starbucks.com/menu/product/2121342/iced/nutrition'),
+      COLD_BREW_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['coconut'],
+    defaultMilkId: null,
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { milk: true, shots: false, syrup: false, sauce: false, sweetener: false, coldFoam: false, whip: false, topping: false },
+    allergens: [],
+    source: source('https://www.starbucks.com/menu/product/2121342/iced/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'iced-caffe-latte',
+    slug: 'iced-caffe-latte',
+    name: 'Iced Caffè Latte',
+    category: 'iced-coffee',
+    subcategory: 'Iced Coffee',
+    description: 'Rich, full-bodied espresso balanced with cold milk and served over ice.',
+    aliases: ['iced latte'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 130, totalFatG: 4.5, carbohydratesG: 13, sugarG: 11, proteinG: 8, caffeineMg: 150 }),
+      source('https://www.starbucks.com/menu/product/407/iced/nutrition'),
+      ICED_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 2,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: { ...fullEligibility, coldFoam: true },
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/407/iced/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'iced-shaken-espresso',
+    slug: 'iced-shaken-espresso',
+    name: 'Iced Shaken Espresso',
+    category: 'shaken-espresso',
+    subcategory: 'Espresso',
+    description: 'Espresso shaken with ice and a touch of classic syrup, finished with a splash of milk.',
+    aliases: ['shaken espresso'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 100, totalFatG: 2, carbohydratesG: 17, sugarG: 14, proteinG: 4, caffeineMg: 225 }),
+      source('https://www.starbucks.com/menu/product/2123425/iced/nutrition'),
+      ICED_ESPRESSO_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: 3,
+    minEspressoShots: 1,
+    maxEspressoShots: 6,
+    eligibility: { ...fullEligibility, coldFoam: true },
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/2123425/iced/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'caramel-frappuccino',
+    slug: 'caramel-frappuccino',
+    name: 'Caramel Frappuccino',
+    category: 'frappuccino',
+    subcategory: 'Frappuccino',
+    description: 'Buttery caramel syrup blended with coffee, milk and ice, topped with whipped cream and caramel drizzle.',
+    aliases: ['caramel frap'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 380, totalFatG: 16, saturatedFatG: 10, sugarG: 54, proteinG: 4, caffeineMg: 90 }),
+      source('https://www.starbucks.com/menu/product/424/iced/nutrition'),
+      COLD_BREW_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: ['whole', '2percent', 'nonfat', 'oat', 'almond', 'soy', 'coconut'],
+    defaultMilkId: '2percent',
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { ...fullEligibility, shots: false, whip: true },
+    allergens: ['milk'],
+    source: source('https://www.starbucks.com/menu/product/424/iced/nutrition'),
+    region: 'US',
+  },
+  {
+    id: 'iced-green-tea',
+    slug: 'iced-green-tea',
+    name: 'Iced Green Tea',
+    category: 'tea',
+    subcategory: 'Tea',
+    description: 'A blend of green teas with spearmint, lemon verbena and lemongrass, served over ice, unsweetened by default.',
+    aliases: ['green tea'],
+    sizes: sizesWith(
+      'grande',
+      n({ calories: 0, sugarG: 0, caffeineMg: 27 }),
+      unsourced(
+        'Search did not surface a specific starbucks.com product page for this item; figures are from third-party trackers only. Verify against starbucks.com/menu before treating as final.'
+      ),
+      COLD_BREW_SIZE_SET
+    ),
+    defaultSizeId: 'grande',
+    eligibleMilkIds: [],
+    defaultMilkId: null,
+    defaultEspressoShots: null,
+    minEspressoShots: null,
+    maxEspressoShots: null,
+    eligibility: { milk: false, shots: false, syrup: true, sauce: false, sweetener: true, coldFoam: false, whip: false, topping: false },
+    allergens: [],
+    source: unsourced(
+      'Search did not surface a specific starbucks.com product page for this item; figures are from third-party trackers only. Verify against starbucks.com/menu before treating as final.'
+    ),
+    region: 'US',
+  },
+];
+
+export const DRINK_BY_ID: Record<string, Drink> = Object.fromEntries(DRINKS.map((d) => [d.id, d]));
+export const DRINK_BY_SLUG: Record<string, Drink> = Object.fromEntries(DRINKS.map((d) => [d.slug, d]));
