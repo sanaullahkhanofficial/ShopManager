@@ -102,12 +102,12 @@ const structuredData = [
         <p class="section__eyebrow">Quick Filters</p>
         <h2>Jump straight to what matters to you</h2>
       </div>
-      <div class="filter-bar">
+      <div class="filter-bar" id="quick-filter-bar">
         {
           QUICK_FILTERS.map((f) => {
             const count = applyFilter(f.id, DATABASE.drinks).length;
             return (
-              <a class="chip" href={`#${f.id}`}>
+              <a class="chip" href={`#${f.id}`} data-filter-id={f.id}>
                 {f.label} ({count})
               </a>
             );
@@ -116,6 +116,14 @@ const structuredData = [
       </div>
     </div>
   </section>
+
+  <script>
+    import { track } from '@/lib/analytics';
+    document.getElementById('quick-filter-bar')?.addEventListener('click', (event) => {
+      const link = (event.target as HTMLElement).closest<HTMLElement>('[data-filter-id]');
+      if (link?.dataset.filterId) track({ name: 'filter_used', filterId: link.dataset.filterId });
+    });
+  </script>
 
   <!-- POPULAR DRINKS -->
   <section class="section section--tight" id="popular-drinks">
@@ -396,9 +404,8 @@ const structuredData = [
         <p class="section__eyebrow">Comparisons</p>
         <h2>Compare two drinks</h2>
         <p>
-          Example comparison shown below. A full interactive comparison tool for any two drinks is on our roadmap &mdash; see the <a href="/changelog/"
-            >changelog</a
-          >.
+          Example comparison shown below. Want to compare any two drinks in this calculator, by size and milk? Try the
+          <a href="/compare/">full comparison tool</a>.
         </p>
       </div>
       <div style="overflow-x:auto;">

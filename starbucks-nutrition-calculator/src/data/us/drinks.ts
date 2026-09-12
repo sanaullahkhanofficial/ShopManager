@@ -87,6 +87,48 @@ export const DRINKS: Drink[] = [
     allergens: ['milk'],
     source: source('https://www.starbucks.com/menu/product/407/hot/nutrition'),
     region: 'US',
+    milkVariants: {
+      nonfat: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 130, totalFatG: 0, carbohydratesG: 19, sugarG: 18, proteinG: 13, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with nonfat milk, as its own listed product (not a computed delta).'
+        ),
+      },
+      oat: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 230, totalFatG: 11.1, saturatedFatG: 2.5, sugarG: 15.9, proteinG: 6.1, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with oatmilk, as its own listed product (not a computed delta).'
+        ),
+      },
+      soy: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 210, totalFatG: 7.1, saturatedFatG: 1.9, sugarG: 19.9, proteinG: 12.8, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with soymilk, as its own listed product (not a computed delta).'
+        ),
+      },
+      coconut: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 140, totalFatG: 8, carbohydratesG: 15, sugarG: 13.6, proteinG: 7, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Whole-recipe figure for this drink made with coconutmilk, as its own listed product (not a computed delta).'
+        ),
+      },
+      almond: {
+        sizeId: 'grande',
+        nutrition: n({ calories: 100, totalFatG: 6, carbohydratesG: 10, sugarG: 5, proteinG: 3, caffeineMg: 150 }),
+        source: source(
+          'https://www.starbucks.com/menu/product/407/hot/nutrition',
+          'Third-party sources disagree more than usual on this specific figure (some report a notably higher calorie count for almondmilk lattes); shown as reported by the source consistent with Starbucks’ own almondmilk nutrition profile, pending direct verification.'
+        ),
+      },
+    },
   },
   {
     id: 'cappuccino',

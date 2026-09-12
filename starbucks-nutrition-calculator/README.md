@@ -29,22 +29,30 @@ instead of inventing one.
 - Save, favorite, recent-drinks and shareable-URL state, all client-side via `localStorage` and `URLSearchParams`, with graceful fallbacks if
   storage is unavailable.
 - "What changed?" comparison against the default recipe, and neutral-language "smart swap" suggestions generated from real calculated data.
-- Drink detail pages, `/drinks/`, `/methodology/`, `/faq/`, `/changelog/`, `/privacy/`, `/terms/`, sitemap, robots.txt, canonical/OG/Twitter
-  metadata, and JSON-LD (`WebSite`, `FAQPage`, `BreadcrumbList`).
+- An interactive `/compare/` tool: pick any two drinks, sizes and milks and see calories/sugar/protein/fat/carbs/sodium/caffeine side by side,
+  with a shareable URL for the comparison.
+- Drink detail pages, `/drinks/`, `/compare/`, `/methodology/`, `/faq/`, `/changelog/`, `/privacy/`, `/terms/`, sitemap, robots.txt,
+  canonical/OG/Twitter metadata, and JSON-LD (`WebSite`, `FAQPage`, `BreadcrumbList`).
 - Responsive layout for mobile (320–767px), tablet (768–1023px), laptop (1024–1439px) and desktop (1440px+), with a mobile bottom nav.
-- 34 Vitest unit tests (calculation engine, validation, search, filters, URL round-trip, storage) and Playwright e2e tests across mobile/
-  tablet/desktop viewports.
+- An optional PWA app shell (`manifest.webmanifest` + a small service worker) so the calculator keeps working offline with the same bundled
+  dataset it uses online — it never fabricates a result for something it hasn't actually cached.
+- A non-invasive analytics event architecture (`src/lib/analytics.ts`): event names and call sites are wired up, but nothing is sent anywhere
+  by default — no third-party script is loaded unless a real provider is deliberately wired into `setAnalyticsSink()`.
+- 39 Vitest unit tests (calculation engine, validation, search, filters, URL/compare-URL round-trip, storage) and Playwright e2e tests across
+  mobile/tablet/desktop viewports.
 
 ## Known gaps (intentionally not faked)
 
 - Per-pump syrup/sauce nutrition deltas are not verified for any drink — the calculator discloses "ingredient-level calculation unavailable"
   instead of estimating one.
-- Per-drink milk-substitution nutrition deltas are not verified — selecting a different milk updates your customization summary but shows a
-  disclosure rather than a fabricated total.
+- Per-drink milk-substitution nutrition is verified for the Caffè Latte across all six alternate milks (as Starbucks' own distinct listed
+  products, not computed deltas). Other drinks still show a disclosure rather than a fabricated total when you substitute milk.
 - Food items and seasonal drinks are not yet in the dataset (the type system in `src/types/drink.ts` already supports food items).
 - Only Grande-size data is verified per drink today; other sizes are shown as disabled with "Data not available" rather than guessed.
-- The interactive two-drink comparison tool (arbitrary drink vs. drink) is not built yet; the homepage ships a static example comparison
-  instead. See `/changelog/`.
+- The `/compare/` tool covers drink, size and milk, but not espresso shots/syrup/sauce/whip — use the main calculator for a fully customized
+  single-drink result.
+- The PWA icon is an inline SVG; iOS's `apple-touch-icon` requires a PNG, so the home-screen icon may fall back to a screenshot on iOS until a
+  PNG icon set is added.
 
 ## Getting started
 

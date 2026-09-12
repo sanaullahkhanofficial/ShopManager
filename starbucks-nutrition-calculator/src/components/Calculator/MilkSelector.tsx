@@ -23,9 +23,9 @@ export function MilkSelector({ drink, database, selectedMilkId, onChange }: Prop
           </label>
         ))}
       </div>
-      {selectedMilkId && selectedMilkId !== drink.defaultMilkId && (
+      {selectedMilkId && selectedMilkId !== drink.defaultMilkId && drink.milkVariants?.[selectedMilkId] && (
         <p className="control-note" role="status">
-          Nutrition impact of this milk substitution isn&apos;t in our verified per-drink dataset yet &mdash; totals below reflect the default recipe milk.
+          Nutrition below reflects this drink made with the selected milk, as its own verified figure (not an estimated delta).
         </p>
       )}
     </fieldset>

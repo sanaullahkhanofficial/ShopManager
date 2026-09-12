@@ -31,6 +31,20 @@ export interface DrinkSize {
   source: SourceInfo;
 }
 
+/**
+ * A verified, whole-recipe nutrition figure for this drink made with a
+ * specific non-default milk, at a specific size. This is NOT a delta - it is
+ * a full replacement for the base nutrition, because Starbucks publishes
+ * these as their own distinct products rather than a fixed per-milk offset.
+ * Only present when a real source was found; absence means "not verified",
+ * never "no difference".
+ */
+export interface MilkVariant {
+  sizeId: SizeId;
+  nutrition: NutritionFacts;
+  source: SourceInfo;
+}
+
 export type ModifierKind = 'milk' | 'shots' | 'syrup' | 'sauce' | 'sweetener' | 'coldFoam' | 'whip' | 'topping';
 
 export interface CustomizationEligibility {
@@ -57,6 +71,8 @@ export interface Drink {
   /** Milk option ids this drink supports, in display order. Empty when the drink has no milk (e.g. black coffee). */
   eligibleMilkIds: string[];
   defaultMilkId: string | null;
+  /** Verified full-recipe nutrition for specific non-default milk substitutions, keyed by milk id. */
+  milkVariants?: Record<string, MilkVariant>;
   defaultEspressoShots: number | null;
   minEspressoShots: number | null;
   maxEspressoShots: number | null;

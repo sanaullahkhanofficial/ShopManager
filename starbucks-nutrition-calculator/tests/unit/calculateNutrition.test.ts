@@ -66,6 +66,24 @@ describe('calculateNutrition', () => {
     expect(result.configuration.milkId).toBe(drink.defaultMilkId);
   });
 
+  it('uses a verified milk-variant figure when one exists, without an "unverified" warning', () => {
+    const drink = DRINK_BY_ID['caffe-latte']!;
+    const base = buildDefaultConfiguration(drink);
+    const result = calculateNutrition({ ...base, milkId: 'nonfat' }, DATABASE);
+    expect(result.nutrition.calories).toBe(130);
+    expect(result.nutrition.totalFatG).toBe(0);
+    expect(result.warnings.some((w) => w.includes('is not in the verified per-drink dataset'))).toBe(false);
+  });
+
+  it('falls back to a disclosed "not verified" warning for a milk with no verified variant', () => {
+    const drink = DRINK_BY_ID['cappuccino']!;
+    const base = buildDefaultConfiguration(drink);
+    const baseline = calculateNutrition(base, DATABASE);
+    const result = calculateNutrition({ ...base, milkId: 'oat' }, DATABASE);
+    expect(result.nutrition).toEqual(baseline.nutrition);
+    expect(result.warnings.some((w) => w.includes('is not in the verified per-drink dataset'))).toBe(true);
+  });
+
   it('never fabricates a syrup nutrition delta and instead flags it unavailable', () => {
     const drink = DRINK_BY_ID['caffe-latte']!;
     const base = buildDefaultConfiguration(drink);

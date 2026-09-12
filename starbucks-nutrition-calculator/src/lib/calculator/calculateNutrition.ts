@@ -63,7 +63,18 @@ export function calculateNutrition(configuration: DrinkConfiguration, database: 
     effectiveConfig = { ...effectiveConfig, milkId };
     if (milkId && drink.defaultMilkId && milkId !== drink.defaultMilkId) {
       const milk = database.milks.find((m) => m.id === milkId);
-      warnings.push(`Milk substitution (${milk?.name ?? milkId}) is not in the verified per-drink dataset yet — totals below reflect the default recipe milk.`);
+      const variant = drink.milkVariants?.[milkId];
+      if (variant && variant.sizeId === size.id) {
+        // A verified, whole-recipe figure exists for this exact milk+size - use it
+        // as the new base instead of layering an unverified delta on top.
+        total = { ...variant.nutrition };
+        breakdown[0] = { id: 'base', label: `${drink.name} — ${size.name} with ${milk?.name ?? milkId}`, appliedDelta: null, quantity: 1 };
+        sourceInfo.push(variant.source);
+      } else {
+        warnings.push(
+          `Milk substitution (${milk?.name ?? milkId}) is not in the verified per-drink dataset yet — totals below reflect the default recipe milk.`
+        );
+      }
     }
   } else if (effectiveConfig.milkId !== null) {
     effectiveConfig = { ...effectiveConfig, milkId: null };

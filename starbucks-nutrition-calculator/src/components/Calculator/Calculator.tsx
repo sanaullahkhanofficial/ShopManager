@@ -4,6 +4,7 @@ import { useCalculatorStore } from './store';
 import { buildDefaultConfiguration } from '@/lib/calculator/defaults';
 import { parseConfigurationFromSearchParams, configurationToSearchParams, configurationToShareUrl } from '@/lib/sharing/url';
 import { saveDrink, pushRecentDrinkId, toggleFavorite, getFavoriteIds } from '@/lib/storage/localStorage';
+import { track } from '@/lib/analytics';
 import { DrinkPicker } from './DrinkPicker';
 import { SizeSelector } from './SizeSelector';
 import { MilkSelector } from './MilkSelector';
@@ -59,8 +60,16 @@ function CalculatorReady({ database, firstDrink }: Props & { firstDrink: NonNull
   }, [result.configuration]);
 
   useEffect(() => {
+    track({ name: 'calculator_started', drinkId: firstDrink.id });
+  }, [firstDrink.id]);
+
+  useEffect(() => {
     pushRecentDrinkId(drink.id);
   }, [drink.id]);
+
+  useEffect(() => {
+    track({ name: 'nutrition_viewed', drinkId: drink.id, calories: result.nutrition.calories });
+  }, [drink.id, result.nutrition]);
 
   useEffect(() => {
     setFavorites(getFavoriteIds().value);
@@ -70,6 +79,7 @@ function CalculatorReady({ database, firstDrink }: Props & { firstDrink: NonNull
     const name = saveName.trim() || `${drink.name} (custom)`;
     const res = saveDrink({ name, configuration: result.configuration, nutrition: result.nutrition, dataVersion: database.dataVersion });
     setSaveNotice(res.ok ? 'Saved to your device.' : (res.error ?? 'Could not save.'));
+    if (res.ok) track({ name: 'drink_saved', drinkId: drink.id });
   }
 
   async function handleShare() {
@@ -78,17 +88,25 @@ function CalculatorReady({ database, firstDrink }: Props & { firstDrink: NonNull
       if (typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({ title: `${drink.name} nutrition`, url });
         setShareNotice('Shared.');
+        track({ name: 'drink_shared', drinkId: drink.id, method: 'web-share' });
         return;
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(url);
         setShareNotice('Link copied to clipboard.');
+        track({ name: 'drink_shared', drinkId: drink.id, method: 'clipboard' });
         return;
       }
       setShareNotice(url);
+      track({ name: 'drink_shared', drinkId: drink.id, method: 'fallback' });
     } catch {
       setShareNotice('Sharing was cancelled or is unavailable on this device.');
     }
+  }
+
+  function selectDrink(drinkId: string, source: 'search' | 'category' | 'smart-swap') {
+    track({ name: 'drink_selected', drinkId, source });
+    dispatch({ type: 'SELECT_DRINK', drinkId });
   }
 
   function handleFavorite() {
@@ -108,7 +126,7 @@ function CalculatorReady({ database, firstDrink }: Props & { firstDrink: NonNull
           selectedDrinkId={drink.id}
           onSearch={(query) => dispatch({ type: 'SET_SEARCH', query })}
           onSelectCategory={(category) => dispatch({ type: 'SET_CATEGORY', category })}
-          onSelectDrink={(drinkId) => dispatch({ type: 'SELECT_DRINK', drinkId })}
+          onSelectDrink={(drinkId) => selectDrink(drinkId, state.searchQuery.trim() ? 'search' : 'category')}
         />
       </div>
 
@@ -116,25 +134,51 @@ function CalculatorReady({ database, firstDrink }: Props & { firstDrink: NonNull
         <h2 className="calculator__drink-name">{drink.name}</h2>
         <p className="calculator__drink-description">{drink.description}</p>
 
-        <SizeSelector drink={drink} selectedSizeId={result.configuration.sizeId} onChange={(sizeId) => dispatch({ type: 'SET_SIZE', sizeId })} />
+        <SizeSelector
+          drink={drink}
+          selectedSizeId={result.configuration.sizeId}
+          onChange={(sizeId) => {
+            track({ name: 'size_changed', drinkId: drink.id, sizeId });
+            dispatch({ type: 'SET_SIZE', sizeId });
+          }}
+        />
         <MilkSelector
           drink={drink}
           database={database}
           selectedMilkId={result.configuration.milkId}
-          onChange={(milkId) => dispatch({ type: 'SET_MILK', milkId })}
+          onChange={(milkId) => {
+            track({ name: 'customization_changed', drinkId: drink.id, field: 'milk', value: milkId });
+            dispatch({ type: 'SET_MILK', milkId });
+          }}
         />
         {result.configuration.espressoShots !== null && (
-          <ShotSelector drink={drink} shots={result.configuration.espressoShots} onChange={(shots) => dispatch({ type: 'SET_SHOTS', shots })} />
+          <ShotSelector
+            drink={drink}
+            shots={result.configuration.espressoShots}
+            onChange={(shots) => {
+              track({ name: 'customization_changed', drinkId: drink.id, field: 'espressoShots', value: shots });
+              dispatch({ type: 'SET_SHOTS', shots });
+            }}
+          />
         )}
         <ModifierControls
           drink={drink}
           database={database}
           configuration={result.configuration}
-          onSetSyrup={(pumps) => dispatch({ type: 'SET_SYRUP_PUMPS', pumps })}
-          onSetSauce={(pumps) => dispatch({ type: 'SET_SAUCE_PUMPS', pumps })}
+          onSetSyrup={(pumps) => {
+            track({ name: 'customization_changed', drinkId: drink.id, field: 'syrupPumps', value: pumps });
+            dispatch({ type: 'SET_SYRUP_PUMPS', pumps });
+          }}
+          onSetSauce={(pumps) => {
+            track({ name: 'customization_changed', drinkId: drink.id, field: 'saucePumps', value: pumps });
+            dispatch({ type: 'SET_SAUCE_PUMPS', pumps });
+          }}
           onToggleSweetener={() => dispatch({ type: 'TOGGLE_SWEETENER' })}
           onToggleColdFoam={() => dispatch({ type: 'TOGGLE_COLD_FOAM' })}
-          onSetWhip={(whip) => dispatch({ type: 'SET_WHIP', whip })}
+          onSetWhip={(whip) => {
+            track({ name: 'customization_changed', drinkId: drink.id, field: 'whip', value: whip });
+            dispatch({ type: 'SET_WHIP', whip });
+          }}
           onToggleTopping={(topping) => dispatch({ type: 'TOGGLE_TOPPING', topping })}
         />
 
@@ -175,12 +219,7 @@ function CalculatorReady({ database, firstDrink }: Props & { firstDrink: NonNull
           {shareNotice && <p role="status">{shareNotice}</p>}
         </div>
 
-        <SmartSwaps
-          drinkId={drink.id}
-          nutrition={result.nutrition}
-          database={database}
-          onSelectDrink={(id) => dispatch({ type: 'SELECT_DRINK', drinkId: id })}
-        />
+        <SmartSwaps drinkId={drink.id} nutrition={result.nutrition} database={database} onSelectDrink={(id) => selectDrink(id, 'smart-swap')} />
       </div>
     </div>
   );

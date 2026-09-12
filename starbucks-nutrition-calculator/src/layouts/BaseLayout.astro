@@ -37,7 +37,10 @@ const jsonLd = structuredData ? (Array.isArray(structuredData) ? structuredData 
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
 
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0f3d2e" />
     {jsonLd.map((data) => <script type="application/ld+json" is:inline set:html={JSON.stringify(data)} />)}
   </head>
   <body>
@@ -47,5 +50,15 @@ const jsonLd = structuredData ? (Array.isArray(structuredData) ? structuredData 
     </main>
     <Footer />
     {showBottomNav && <BottomNav />}
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {
+            // Offline shell is a progressive enhancement - failing silently
+            // here just means the site behaves like a normal online-only page.
+          });
+        });
+      }
+    </script>
   </body>
 </html>
