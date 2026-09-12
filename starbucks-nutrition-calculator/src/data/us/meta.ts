@@ -1,4 +1,4 @@
-export const DATA_VERSION = '2026.09-seed';
+export const DATA_VERSION = '2026.09-seed.2';
 export const LAST_REVIEWED = '2026-09-12';
 
 /**

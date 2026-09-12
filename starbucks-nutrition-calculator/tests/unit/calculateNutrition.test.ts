@@ -114,6 +114,25 @@ describe('calculateNutrition', () => {
     expect(result.warnings.length).toBeGreaterThan(0);
   });
 
+  it('calculates a verified Venti size correctly when more than one size is verified for a drink', () => {
+    const drink = DRINK_BY_ID['caffe-latte']!;
+    const base = buildDefaultConfiguration(drink);
+    const result = calculateNutrition({ ...base, sizeId: 'venti' }, DATABASE);
+    expect(result.nutrition.calories).toBe(250);
+    expect(result.nutrition.caffeineMg).toBe(150);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it.each(['iced-caffe-latte', 'iced-shaken-espresso', 'caramel-frappuccino', 'iced-green-tea'])(
+    'calculates the newly added drink %s without warnings at its default configuration',
+    (drinkId) => {
+      const drink = DRINK_BY_ID[drinkId]!;
+      const result = calculateNutrition(buildDefaultConfiguration(drink), DATABASE);
+      expect(result.nutrition.calories).not.toBeNull();
+      expect(result.warnings).toEqual([]);
+    }
+  );
+
   it('never produces a false-positive combination: disabling shots for a non-espresso drink zeroes them out', () => {
     const drink = DRINK_BY_ID['cold-brew']!;
     const base = buildDefaultConfiguration(drink);

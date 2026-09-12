@@ -21,8 +21,12 @@ instead of inventing one.
 
 - A real, state-driven calculator (drink → size → milk → espresso shots → syrup/sauce/sweetener/cold foam/whip/toppings → nutrition), built on
   a pure, deterministic `calculateNutrition(configuration, database)` function (see `src/lib/calculator/`).
-- 11 seed drinks across Hot Coffee, Iced Coffee, Espresso, Cold Brew, Latte, Cappuccino, Macchiato, Mocha, Americano, Refreshers, Matcha and
-  Chai categories.
+- 15 seed drinks across Hot Coffee, Iced Coffee, Espresso, Cold Brew, Latte, Cappuccino, Macchiato, Mocha, Americano, Shaken Espresso,
+  Frappuccino, Refreshers, Matcha, Chai and Tea categories.
+- Multiple verified sizes (not just Grande) for a few drinks — e.g. the Caffè Latte and Caramel Macchiato family now have Tall/Grande/Venti
+  figures where sourced, with any size that isn't sourced yet shown as disabled ("Data not available") rather than guessed.
+- A starter Starbucks Food dataset (`src/types/food.ts`, `src/data/us/food.ts`) — 4 bakery/sandwich items with a `/food/` listing and detail
+  pages, kept as its own schema (serving-based, no size/milk) rather than forced into the beverage `Drink` type.
 - Size, milk and customization eligibility per drink — invalid combinations are clamped/repaired, never silently miscalculated.
 - Search (instant, case-insensitive, alias- and category-aware), quick filters (data-driven, not hard-coded), popular drinks, low-calorie /
   low-sugar / high-protein / dairy-free / caffeine-free sections.
@@ -31,15 +35,15 @@ instead of inventing one.
 - "What changed?" comparison against the default recipe, and neutral-language "smart swap" suggestions generated from real calculated data.
 - An interactive `/compare/` tool: pick any two drinks, sizes and milks and see calories/sugar/protein/fat/carbs/sodium/caffeine side by side,
   with a shareable URL for the comparison.
-- Drink detail pages, `/drinks/`, `/compare/`, `/methodology/`, `/faq/`, `/changelog/`, `/privacy/`, `/terms/`, sitemap, robots.txt,
+- Drink detail pages, `/drinks/`, `/food/`, `/compare/`, `/methodology/`, `/faq/`, `/changelog/`, `/privacy/`, `/terms/`, sitemap, robots.txt,
   canonical/OG/Twitter metadata, and JSON-LD (`WebSite`, `FAQPage`, `BreadcrumbList`).
 - Responsive layout for mobile (320–767px), tablet (768–1023px), laptop (1024–1439px) and desktop (1440px+), with a mobile bottom nav.
 - An optional PWA app shell (`manifest.webmanifest` + a small service worker) so the calculator keeps working offline with the same bundled
   dataset it uses online — it never fabricates a result for something it hasn't actually cached.
 - A non-invasive analytics event architecture (`src/lib/analytics.ts`): event names and call sites are wired up, but nothing is sent anywhere
   by default — no third-party script is loaded unless a real provider is deliberately wired into `setAnalyticsSink()`.
-- 39 Vitest unit tests (calculation engine, validation, search, filters, URL/compare-URL round-trip, storage) and Playwright e2e tests across
-  mobile/tablet/desktop viewports.
+- 48 Vitest unit tests (calculation engine, validation, search, filters, URL/compare-URL round-trip, storage, food dataset) and Playwright e2e
+  tests across mobile/tablet/desktop viewports.
 
 ## Known gaps (intentionally not faked)
 
@@ -47,12 +51,16 @@ instead of inventing one.
   instead of estimating one.
 - Per-drink milk-substitution nutrition is verified for the Caffè Latte across all six alternate milks (as Starbucks' own distinct listed
   products, not computed deltas). Other drinks still show a disclosure rather than a fabricated total when you substitute milk.
-- Food items and seasonal drinks are not yet in the dataset (the type system in `src/types/drink.ts` already supports food items).
-- Only Grande-size data is verified per drink today; other sizes are shown as disabled with "Data not available" rather than guessed.
+- Seasonal drinks are not yet in the dataset. Food coverage is a starter set of 4 bakery/sandwich items, not the full menu, and food items
+  aren't wired into the interactive calculator (no customization) — they're reference nutrition only.
+- Most drinks still only have one verified size (usually Grande); a few (Caffè Latte, Caramel Macchiato, Iced Caramel Macchiato) now have
+  Tall/Grande/Venti where sourced. Any unsourced size shows as disabled rather than guessed.
 - The `/compare/` tool covers drink, size and milk, but not espresso shots/syrup/sauce/whip — use the main calculator for a fully customized
   single-drink result.
 - The PWA icon is an inline SVG; iOS's `apple-touch-icon` requires a PNG, so the home-screen icon may fall back to a screenshot on iOS until a
   PNG icon set is added.
+- One food item (Butter Croissant) and one drink size note have no starbucks.com product URL surfaced by search; their figures are flagged as
+  third-party-only (`sourceUrl: null`) rather than pointed at a guessed link.
 
 ## Getting started
 

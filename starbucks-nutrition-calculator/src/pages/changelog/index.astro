@@ -15,6 +15,33 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       </div>
 
       <article style="margin-bottom:32px;">
+        <h2>2026.09-seed.2</h2>
+        <p>Expanded coverage.</p>
+        <ul>
+          <li>Added 4 drinks: Iced Caffè Latte, Iced Shaken Espresso, Caramel Frappuccino and Iced Green Tea.</li>
+          <li>
+            Added verified Venti figures for the Caffè Latte and Caramel Macchiato, and Tall/Venti figures for the Iced Caramel Macchiato - the first drinks in
+            this dataset with more than one verified size.
+          </li>
+          <li>
+            Added a starter Starbucks Food dataset (<code>/food/</code>): Butter Croissant, Chocolate Croissant, Blueberry Streusel Muffin and the Bacon, Gouda
+            &amp; Egg Sandwich, as their own schema separate from the beverage <code>Drink</code> type.
+          </li>
+          <li>Interactive <code>/compare/</code> tool for comparing any two drinks by size and milk.</li>
+          <li>Optional PWA app shell (manifest + offline-capable service worker) and a non-invasive analytics event architecture.</li>
+        </ul>
+        <h3>Known gaps (tracked, not fabricated)</h3>
+        <ul>
+          <li>
+            The Butter Croissant has no starbucks.com product page surfaced by search yet; its figures are third-party-only (flagged, not linked to a guessed
+            URL).
+          </li>
+          <li>Most drinks still have only one verified size; unsourced sizes remain disabled rather than guessed.</li>
+          <li>Food items are reference nutrition only - not yet wired into the interactive calculator's customization flow.</li>
+        </ul>
+      </article>
+
+      <article style="margin-bottom:32px;">
         <h2>2026.09-seed</h2>
         <p>Initial release.</p>
         <ul>

@@ -439,11 +439,25 @@ const structuredData = [
       <div class="section__heading">
         <p class="section__eyebrow">Starbucks Food</p>
         <h2>Food nutrition</h2>
+        <p>
+          This calculator's interactive customization tools currently focus on beverages, but the dataset now includes reference nutrition for a starter set of
+          bakery items and sandwiches. See the full <a href="/food/">food nutrition</a> section for details.
+        </p>
       </div>
-      <p>
-        This calculator currently focuses on beverages. The data architecture already supports food items (see <code>src/types/drink.ts</code> and the methodology
-        page); food nutrition data is not currently available and will be added in a future update rather than estimated.
-      </p>
+      <div class="card-grid">
+        {
+          DATABASE.foods.map((food) => (
+            <a class="info-card" href={`/food/${food.slug}/`}>
+              <h3 style="font-size:1.05rem;">{food.name}</h3>
+              <p style="color:var(--color-ink-500);font-size:0.85rem;">{food.servingSize}</p>
+              <div class="drink-card__stats">
+                <span>{formatValue(food.nutrition.calories, ' cal')}</span>
+                <span>{formatValue(food.nutrition.proteinG, 'g protein')}</span>
+              </div>
+            </a>
+          ))
+        }
+      </div>
     </div>
   </section>
 
