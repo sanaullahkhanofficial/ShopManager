@@ -151,3 +151,12 @@ tests/
   different source — the calculation engine, UI, and tests all consume that interface, not the JSON/TS files directly.
 - Never add a nutrition number without a `sourceUrl` and an honest `status`. If you don't have a verified figure, leave the field `null` (it
   renders as "—") or set the modifier's `perUnit` to `null` (it renders as "ingredient-level calculation unavailable").
+
+## Dependency security note
+
+`npm audit` currently reports a handful of advisories against Astro 4.x's dev-server/SSR/image-optimization/view-transition code paths (this
+project is pinned to `astro@4.16.19`, the newest release in the 4.x line — the fixes only landed in Astro's next major version). None of the
+affected code paths are exercised by this project: it builds with `output: 'static'`, uses no server islands, no view transitions, and no
+raster-image optimization (the only image asset is an inline SVG icon). Fixing them fully means a major-version Astro upgrade, which is a
+breaking change deserving its own dedicated migration and re-test pass rather than a drive-by bump — tracked here rather than done silently.
+Before that upgrade, run `npm audit` yourself and re-verify `npm run build && npm test && npx playwright test` afterward.
