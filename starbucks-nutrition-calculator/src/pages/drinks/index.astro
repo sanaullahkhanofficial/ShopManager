@@ -1,0 +1,91 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import DrinkCard from '@/components/DrinkCard.astro';
+import { DATABASE } from '@/data/us';
+import { getActiveCategories } from '@/lib/catalog';
+
+const categories = getActiveCategories(DATABASE);
+---
+
+<BaseLayout
+  title="Starbucks Drinks | Nutrition by Drink"
+  description="Browse Starbucks drinks with calories, sugar, protein and caffeine for the default recipe, or open the calculator to customize."
+  path="/drinks/"
+>
+  <section class="section">
+    <div class="container">
+      <div class="section__heading">
+        <p class="section__eyebrow">Drinks</p>
+        <h1>All Starbucks drinks in this calculator</h1>
+        <p>Search by name, or filter by category. Every card links to full nutrition detail and to the calculator with that drink preselected.</p>
+      </div>
+
+      <label class="visually-hidden" for="drink-list-search">Search drinks</label>
+      <input id="drink-list-search" type="search" placeholder="Search Starbucks drinks..." class="drink-picker__search" style="max-width:420px;" />
+
+      <div class="drink-picker__tabs" role="tablist" aria-label="Categories" style="margin-block:16px;">
+        <button type="button" class="chip chip--active" data-category="all">All</button>
+        {
+          categories.map((c) => (
+            <button type="button" class="chip" data-category={c.id}>
+              {c.name}
+            </button>
+          ))
+        }
+      </div>
+
+      <p id="drink-list-empty" hidden>No drinks found. Try a different search term or category.</p>
+
+      <div class="card-grid" id="drink-list-grid">
+        {
+          DATABASE.drinks.map((drink) => (
+            <div
+              class="drink-list-item"
+              data-name={drink.name.toLowerCase()}
+              data-aliases={drink.aliases.join(' ').toLowerCase()}
+              data-category={drink.category}
+            >
+              <DrinkCard drink={drink} />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  const search = document.getElementById('drink-list-search') as HTMLInputElement | null;
+  const items = Array.from(document.querySelectorAll<HTMLElement>('.drink-list-item'));
+  const empty = document.getElementById('drink-list-empty');
+  const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-category]'));
+  let activeCategory = 'all';
+
+  function normalize(value: string) {
+    return value.toLowerCase().trim().replace(/\s+/g, ' ');
+  }
+
+  function applyFilters() {
+    const query = normalize(search?.value ?? '');
+    const tokens = query.split(' ').filter(Boolean);
+    let visibleCount = 0;
+    for (const item of items) {
+      const haystack = `${item.dataset.name ?? ''} ${item.dataset.aliases ?? ''}`;
+      const matchesQuery = tokens.every((t) => haystack.includes(t));
+      const matchesCategory = activeCategory === 'all' || item.dataset.category === activeCategory;
+      const visible = matchesQuery && matchesCategory;
+      item.hidden = !visible;
+      if (visible) visibleCount++;
+    }
+    if (empty) empty.hidden = visibleCount !== 0;
+  }
+
+  search?.addEventListener('input', applyFilters);
+  chips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      activeCategory = chip.dataset.category ?? 'all';
+      chips.forEach((c) => c.classList.toggle('chip--active', c === chip));
+      applyFilters();
+    });
+  });
+</script>

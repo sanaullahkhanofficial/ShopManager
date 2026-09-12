@@ -1,0 +1,20 @@
+---
+const items = [
+  { href: '/', label: 'Home', icon: '⌂' },
+  { href: '/drinks/', label: 'Drinks', icon: '☕' },
+  { href: '/#guides', label: 'Guides', icon: 'ℹ' },
+  { href: '/#favorites', label: 'Favorites', icon: '♡' },
+  { href: '/faq/', label: 'More', icon: '⋯' },
+];
+---
+
+<nav class="bottom-nav" aria-label="Quick navigation">
+  {
+    items.map((item) => (
+      <a href={item.href}>
+        <span aria-hidden="true">{item.icon}</span>
+        <span>{item.label}</span>
+      </a>
+    ))
+  }
+</nav>

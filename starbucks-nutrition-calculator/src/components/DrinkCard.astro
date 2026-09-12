@@ -1,0 +1,28 @@
+---
+import type { Drink } from '@/types/drink';
+import { formatValue } from '@/lib/format';
+
+interface Props {
+  drink: Drink;
+}
+
+const { drink } = Astro.props;
+const size = drink.sizes.find((s) => s.id === drink.defaultSizeId);
+const n = size?.nutrition;
+---
+
+<article class="drink-card">
+  <div class="drink-card__icon" aria-hidden="true">&#9749;</div>
+  <h3 style="margin-bottom:0;font-size:1.05rem;">{drink.name}</h3>
+  <p style="margin:0;color:var(--color-ink-500);font-size:0.85rem;">{size?.name ?? drink.defaultSizeId}</p>
+  <div class="drink-card__stats">
+    <span>{formatValue(n?.calories ?? null, ' cal')}</span>
+    <span>{formatValue(n?.sugarG ?? null, 'g sugar')}</span>
+    <span>{formatValue(n?.proteinG ?? null, 'g protein')}</span>
+    <span>{formatValue(n?.caffeineMg ?? null, 'mg caffeine')}</span>
+  </div>
+  <div class="drink-card__actions">
+    <a class="btn btn--secondary" href={`/drinks/${drink.slug}/`}>Details</a>
+    <a class="btn btn--primary" href={`/?drink=${drink.id}#calculator`}>Calculate</a>
+  </div>
+</article>

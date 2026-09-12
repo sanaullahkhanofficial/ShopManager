@@ -1,0 +1,42 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Changelog | Starbucks Nutrition Calculator"
+  description="What changed, and when, in the Starbucks Nutrition Calculator's dataset and application."
+  path="/changelog/"
+>
+  <section class="section">
+    <div class="container" style="max-width:820px;">
+      <div class="section__heading">
+        <p class="section__eyebrow">Changelog</p>
+        <h1>Data &amp; product changelog</h1>
+      </div>
+
+      <article style="margin-bottom:32px;">
+        <h2>2026.09-seed</h2>
+        <p>Initial release.</p>
+        <ul>
+          <li>Calculator engine, drink/size/milk/espresso/syrup/sauce/whip/topping customization architecture.</li>
+          <li>
+            Seed dataset of 11 U.S. drinks, compiled from publicly available Starbucks nutrition figures via third-party trackers and marked <code
+              >needs-review</code
+            > pending direct verification against starbucks.com.
+          </li>
+          <li>Save, favorite, recent drinks and shareable URL state (all client-side, in the browser).</li>
+        </ul>
+        <h3>Known gaps (tracked, not fabricated)</h3>
+        <ul>
+          <li>Per-pump syrup and sauce nutrition: not yet verified for any drink.</li>
+          <li>Per-drink milk-substitution nutrition deltas: not yet verified.</li>
+          <li>Food items and seasonal drinks: not yet in the dataset.</li>
+          <li>
+            Java Chip Frappuccino and several other popular items: excluded from this release because third-party sources disagreed enough on the figures that
+            we chose not to publish a number.
+          </li>
+        </ul>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

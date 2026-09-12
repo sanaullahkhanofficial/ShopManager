@@ -1,0 +1,60 @@
+---
+const columns = [
+  {
+    title: 'Product',
+    links: [
+      { href: '/#calculator', label: 'Calculator' },
+      { href: '/drinks/', label: 'Drinks' },
+      { href: '/#food', label: 'Food' },
+      { href: '/#ingredients', label: 'Ingredients' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { href: '/#nutrition-metrics', label: 'Nutrition' },
+      { href: '/#guides', label: 'Guides' },
+      { href: '/faq/', label: 'FAQ' },
+      { href: '/methodology/', label: 'Methodology' },
+      { href: '/changelog/', label: 'Changelog' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { href: '/methodology/', label: 'About' },
+      { href: '/faq/', label: 'Contact' },
+      { href: '/privacy/', label: 'Privacy' },
+      { href: '/terms/', label: 'Terms' },
+    ],
+  },
+];
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="site-footer__grid">
+      {
+        columns.map((col) => (
+          <div>
+            <h3>{col.title}</h3>
+            <ul>
+              {col.links.map((link) => (
+                <li>
+                  <a href={link.href}>{link.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+    <p class="site-footer__disclaimer">
+      Starbucks Nutrition Calculator is an independent informational tool and is not affiliated with, endorsed by, or sponsored by Starbucks Corporation.
+      Starbucks&reg; is a trademark of Starbucks Corporation, used here only to identify the products this tool calculates nutrition for. Nutrition figures are
+      based on available U.S. standard-recipe/product data and supported customization rules; actual prepared nutrition may vary by location, preparation and
+      ingredient availability. This is not medical or dietary advice &mdash; for allergy or medical decisions, refer to current official Starbucks product
+      information.
+    </p>
+  </div>
+</footer>
