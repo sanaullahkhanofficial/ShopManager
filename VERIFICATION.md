@@ -97,6 +97,23 @@ any other network resource.
 - `npx tsc --noEmit` and `npm run build:web` both pass, including the new
   `jsbarcode`/`papaparse` dependencies.
 
+## Phase D checks (this session)
+- `scripts/test-phaseD.cjs` (`npm run test:phaseD`) — 12 assertions:
+  customer groups, CNIC persistence, a partial `{id, credit_limit}`
+  update leaving name/shop_name intact (this test caught the same bug
+  class Phase C found, now fixed in both `customers:save` and
+  `suppliers:save`), deactivate/reactivate round-tripping other fields
+  correctly, `customers:stats`/`customers:recentSales` aggregating real
+  sales, and a full credit-sale-then-partial-payment scenario netting to
+  the right outstanding balance. All passed. The four earlier suites were
+  re-run and still pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed): Customers list
+  with the form panel populated via a real row selection, the full
+  Customer Ledger workspace (header stats, transaction ledger with running
+  balance, Receive Payment form), and the Ageing Report tab all render
+  correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

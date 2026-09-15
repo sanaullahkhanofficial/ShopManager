@@ -736,10 +736,23 @@ function registerIpc() {
     SELECT c.*, g.name group_name, COALESCE(c.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance
     FROM customers c LEFT JOIN customer_groups g ON g.id=c.group_id WHERE c.status='active' ORDER BY COALESCE(c.shop_name,c.name)`).all());
   ipcMain.handle("customers:save", (_, x) => {
-    if (x.id) db.prepare("UPDATE customers SET shop_name=?,name=?,phone=?,whatsapp=?,address=?,city=?,area=?,customer_type=?,cnic=?,group_id=?,credit_limit=?,notes=? WHERE id=?")
-      .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.cnic || "", x.group_id || null, x.credit_limit || 0, x.notes || "", x.id);
-    else db.prepare("INSERT INTO customers(shop_name,name,phone,whatsapp,address,city,area,customer_type,cnic,group_id,credit_limit,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.cnic || "", x.group_id || null, x.credit_limit || 0, x.opening_balance || 0, x.notes || "", now());
+    if (x.id) {
+      // Merge onto the existing row so a partial payload (Set Credit Limit,
+      // Deactivate Customer, etc.) never nulls out fields it didn't send.
+      const existing = db.prepare("SELECT * FROM customers WHERE id=?").get(x.id);
+      if (!existing) throw new Error("Customer not found");
+      const merged = { ...existing, ...x };
+      db.prepare("UPDATE customers SET shop_name=?,name=?,phone=?,whatsapp=?,address=?,city=?,area=?,customer_type=?,cnic=?,group_id=?,credit_limit=?,notes=?,status=? WHERE id=?")
+        .run(merged.shop_name || "", merged.name, merged.phone || "", merged.whatsapp || "", merged.address || "", merged.city || "", merged.area || "",
+          merged.customer_type || "Retail", merged.cnic || "", merged.group_id || null, merged.credit_limit || 0, merged.notes || "", merged.status || "active", x.id);
+      if (Number(existing.credit_limit) !== Number(merged.credit_limit))
+        audit(x.actorId, "CREDIT_LIMIT_CHANGED", "customer", x.id, { before: existing.credit_limit, after: merged.credit_limit });
+      if (existing.status !== merged.status) audit(x.actorId, merged.status === "active" ? "CUSTOMER_REACTIVATED" : "CUSTOMER_DEACTIVATED", "customer", x.id, { name: merged.name });
+    } else {
+      db.prepare("INSERT INTO customers(shop_name,name,phone,whatsapp,address,city,area,customer_type,cnic,group_id,credit_limit,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.cnic || "", x.group_id || null, x.credit_limit || 0, x.opening_balance || 0, x.notes || "", now());
+      audit(x.actorId, "CREATE", "customer", null, { name: x.name });
+    }
     return true;
   });
   ipcMain.handle("customers:ledger", (_, customerId) => db.prepare("SELECT * FROM customer_transactions WHERE customer_id=? ORDER BY id DESC").all(customerId));
@@ -748,15 +761,30 @@ function registerIpc() {
     const rows = db.prepare("SELECT direction,amount,created_at FROM customer_transactions WHERE customer_id=? ORDER BY created_at ASC").all(customerId);
     return computeAging(rows, c.opening_balance, c.created_at);
   });
+  ipcMain.handle("customers:stats", (_, customerId) => {
+    const sales = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(total),0) total, MAX(sale_date) lastDate FROM sales WHERE customer_id=? AND status='COMPLETED'").get(customerId);
+    const payments = db.prepare("SELECT COALESCE(SUM(amount),0) v FROM customer_transactions WHERE customer_id=? AND type='PAYMENT'").get(customerId);
+    return { totalPurchases: sales.total, totalInvoices: sales.n, lastPurchaseDate: sales.lastDate, totalPayments: payments.v };
+  });
+  ipcMain.handle("customers:recentSales", (_, customerId) => db.prepare("SELECT * FROM sales WHERE customer_id=? ORDER BY id DESC LIMIT 10").all(customerId));
 
   ipcMain.handle("suppliers:list", () => db.prepare(`
     SELECT s.*, COALESCE(s.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance
     FROM suppliers s WHERE s.status='active' ORDER BY s.name`).all());
   ipcMain.handle("suppliers:save", (_, x) => {
-    if (x.id) db.prepare("UPDATE suppliers SET name=?,contact_person=?,phone=?,whatsapp=?,address=?,city=?,category=?,ntn=?,payment_term_days=?,products_supplied=?,notes=? WHERE id=?")
-      .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.ntn || "", x.payment_term_days || 0, x.products_supplied || "", x.notes || "", x.id);
-    else db.prepare("INSERT INTO suppliers(name,contact_person,phone,whatsapp,address,city,category,ntn,payment_term_days,products_supplied,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.ntn || "", x.payment_term_days || 0, x.products_supplied || "", x.opening_balance || 0, x.notes || "", now());
+    if (x.id) {
+      const existing = db.prepare("SELECT * FROM suppliers WHERE id=?").get(x.id);
+      if (!existing) throw new Error("Supplier not found");
+      const merged = { ...existing, ...x };
+      db.prepare("UPDATE suppliers SET name=?,contact_person=?,phone=?,whatsapp=?,address=?,city=?,category=?,ntn=?,payment_term_days=?,products_supplied=?,notes=?,status=? WHERE id=?")
+        .run(merged.name, merged.contact_person || "", merged.phone || "", merged.whatsapp || "", merged.address || "", merged.city || "",
+          merged.category || "", merged.ntn || "", merged.payment_term_days || 0, merged.products_supplied || "", merged.notes || "", merged.status || "active", x.id);
+      if (existing.status !== merged.status) audit(x.actorId, merged.status === "active" ? "SUPPLIER_REACTIVATED" : "SUPPLIER_DEACTIVATED", "supplier", x.id, { name: merged.name });
+    } else {
+      db.prepare("INSERT INTO suppliers(name,contact_person,phone,whatsapp,address,city,category,ntn,payment_term_days,products_supplied,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.ntn || "", x.payment_term_days || 0, x.products_supplied || "", x.opening_balance || 0, x.notes || "", now());
+      audit(x.actorId, "CREATE", "supplier", null, { name: x.name });
+    }
     return true;
   });
   ipcMain.handle("suppliers:ledger", (_, supplierId) => db.prepare("SELECT * FROM supplier_transactions WHERE supplier_id=? ORDER BY id DESC").all(supplierId));

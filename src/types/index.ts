@@ -75,10 +75,15 @@ export interface Customer {
   city: string;
   area: string;
   customer_type: CustomerType;
+  cnic: string;
+  group_id: number | null;
+  group_name?: string;
   credit_limit: number;
   opening_balance: number;
   notes: string;
   balance: number;
+  status: string;
+  created_at: string;
 }
 
 export interface Supplier {
@@ -244,6 +249,36 @@ export interface StockMovement {
   unit_cost: number;
   reference: string;
   reason: string;
+  created_at: string;
+}
+
+export interface Aging {
+  current: number;
+  d31_60: number;
+  d61_90: number;
+  over90: number;
+}
+
+export interface CustomerStats {
+  totalPurchases: number;
+  totalInvoices: number;
+  lastPurchaseDate: string | null;
+  totalPayments: number;
+}
+
+export interface CustomerGroup {
+  id: number;
+  name: string;
+}
+
+export interface LedgerEntry {
+  id: number;
+  type: string;
+  direction: number;
+  amount: number;
+  reference: string;
+  note: string;
+  payment_method?: string;
   created_at: string;
 }
 

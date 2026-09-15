@@ -39,6 +39,11 @@ export const api = {
   customersList: () => invoke("customers:list"),
   customersSave: (x: Record<string, unknown>) => invoke("customers:save", x),
   customersLedger: (id: number) => invoke("customers:ledger", id),
+  customersAging: (id: number) => invoke("customers:aging", id),
+  customersStats: (id: number) => invoke("customers:stats", id),
+  customersRecentSales: (id: number) => invoke("customers:recentSales", id),
+  customerGroupsList: () => invoke("customerGroups:list"),
+  customerGroupsSave: (x: Record<string, unknown>) => invoke("customerGroups:save", x),
 
   suppliersList: () => invoke("suppliers:list"),
   suppliersSave: (x: Record<string, unknown>) => invoke("suppliers:save", x),

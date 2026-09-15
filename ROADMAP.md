@@ -274,6 +274,39 @@ inert form fields:
   Stock Transfer all render correctly with zero console errors, including
   the newly-expandable sidebar group.
 
+## Phase D — Customers v2 + Customer Ledger (this pass, real, tested)
+
+- **Customers page rebuilt**: 5 summary cards (all computed from real data —
+  total customers, active shops, total credit limit, outstanding balance,
+  new this month), a real filter bar (search + customer type + area,
+  derived from actual customer data), the same always-visible tabbed
+  panel pattern as Products (now showing live stats — total purchases,
+  total invoices, recent transactions — once a customer is selected),
+  customer groups (real CRUD), and CSV import/export matching by phone.
+- **Customer Ledger & Payments**: a new dedicated page (reachable via a
+  second real item in the Customers sidebar group) with a customer
+  picker, 5 tabs (Transaction Ledger with a real chronological running
+  balance, Account Summary, Payment History, Sales History, Ageing
+  Report using the Phase 0 FIFO aging), a live Receive Payment form, and
+  Print/Export via the shared `PrintableList`.
+- **New backend**: `customers:stats` (real lifetime purchase/payment
+  aggregates from `sales` and `customer_transactions`, not estimates) and
+  `customers:recentSales`.
+- **Fixed the same partial-update bug in `customers:save` and
+  `suppliers:save`** that Phase C found in `products:save` — both now
+  merge onto the existing row before writing, so "Set Credit Limit" or
+  "Deactivate Customer" (partial payloads) can no longer null out a
+  customer's or supplier's other fields. Fixed proactively in both places
+  since the same bug pattern existed in both handlers, even though
+  Suppliers' UI is Phase E.
+- Verified with `scripts/test-phaseD.cjs` (customer groups, CNIC
+  persistence, safe partial credit-limit/deactivate/reactivate updates
+  confirming other fields survive, real stats aggregation, and a full
+  credit-sale-then-payment scenario netting to the correct balance) — all
+  12 assertions pass, plus all four earlier suites re-run clean. Visual
+  smoke test confirms the Customers list+form, the full ledger workspace,
+  and the aging report tab all render correctly with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
