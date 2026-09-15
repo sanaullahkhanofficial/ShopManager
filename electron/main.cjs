@@ -1292,10 +1292,23 @@ function registerIpc() {
     const reg = currentOpenRegister();
     const cashInHand = reg ? reg.opening_cash + registerTotals(reg.id).cashIn - registerTotals(reg.id).cashOut : null;
     const creditSalesToday = db.prepare("SELECT COALESCE(SUM(balance),0) v,COUNT(*) n FROM sales WHERE sale_date=? AND status='COMPLETED' AND balance>0").get(today());
+
+    const trendDays = [];
+    for (let i = 6; i >= 0; i--) trendDays.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+    const trendRows = db.prepare(`SELECT sale_date, COALESCE(SUM(total),0) v FROM sales WHERE status='COMPLETED' AND sale_date IN (${trendDays.map(() => "?").join(",")}) GROUP BY sale_date`).all(...trendDays);
+    const trendMap = Object.fromEntries(trendRows.map((r) => [r.sale_date, r.v]));
+    const trend = trendDays.map((d) => ({ date: d, total: trendMap[d] || 0 }));
+
+    const paymentBreakdown = db.prepare("SELECT payment_method, COALESCE(SUM(total),0) v FROM sales WHERE sale_date=? AND status='COMPLETED' GROUP BY payment_method ORDER BY v DESC").all(today());
+
+    const todaySummary = computeSummary(today(), today());
+    const mix = { retailSales: todaySummary.retailSales, wholesaleSales: todaySummary.wholesaleSales, cashSales: todaySummary.cashSales, creditSales: todaySummary.creditSales };
+
     return {
       sales, salesDeltaPct: pctDelta(sales, salesYesterday), purchases, expenses: expensesToday, profit, low,
       receivables, payables, stockValue, cashInHand, registerOpen: !!reg,
       salesOnCredit: creditSalesToday.v, salesOnCreditCount: creditSalesToday.n,
+      trend, paymentBreakdown, mix,
     };
   });
 

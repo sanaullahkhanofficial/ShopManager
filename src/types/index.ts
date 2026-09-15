@@ -288,6 +288,9 @@ export interface DashboardData {
   registerOpen: boolean;
   salesOnCredit: number;
   salesOnCreditCount: number;
+  trend: Array<{ date: string; total: number }>;
+  paymentBreakdown: Array<{ payment_method: string; v: number }>;
+  mix: { retailSales: number; wholesaleSales: number; cashSales: number; creditSales: number };
 }
 
 export interface ReportSummary {

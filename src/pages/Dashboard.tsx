@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import {
-  AlertTriangle, Banknote, PackageSearch, ReceiptText, ShoppingCart, TrendingUp, Wallet, Warehouse,
+  AlertTriangle, Banknote, Landmark, PiggyBank, ReceiptText, ShoppingCart, TrendingUp, Wallet, Warehouse,
   Zap, Plus, Truck, UserPlus, UsersRound, Wallet2, Sun,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { money, formatDateTime } from "../lib/format";
 import { StatCard } from "../components/ui/StatCard";
 import { DataTable } from "../components/ui/DataTable";
-import type { DashboardData, Sale } from "../types";
+import { TrendBarChart, BreakdownDonut, SplitBar } from "../components/ui/charts";
+import type { BankAccount, CashRegisterState, DashboardData, Sale } from "../types";
 import type { PageId } from "../components/layout/Sidebar";
 
 const QUICK_ACTIONS: Array<{ id: PageId; label: string; icon: React.ElementType; tone: string }> = [
@@ -19,19 +20,42 @@ const QUICK_ACTIONS: Array<{ id: PageId; label: string; icon: React.ElementType;
   { id: "expenses", label: "Expense", icon: Wallet2, tone: "bg-brand-green-50 text-brand-green-700" },
 ];
 
+// Fixed categorical color per payment method (never reassigned by rank — the
+// same method always reads as the same color, whichever subset appears today).
+const PAYMENT_COLORS: Record<string, string> = {
+  Cash: "#2a78d6", "Bank Transfer": "#eb6834", JazzCash: "#1baf7a", Easypaisa: "#eda100",
+  Cheque: "#e87ba4", Credit: "#008300", Partial: "#4a3aa7",
+};
+
+function weekdayLabel(iso: string) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short" });
+}
+
 export function Dashboard({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [recent, setRecent] = useState<Sale[]>([]);
+  const [register, setRegister] = useState<CashRegisterState | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [pettyBalance, setPettyBalance] = useState(0);
 
   useEffect(() => {
     api.dashboard().then((d) => setData(d as DashboardData));
     api.salesList().then((s) => setRecent((s as Sale[]).slice(0, 8)));
+    api.cashCurrent().then((s) => setRegister(s as CashRegisterState | null));
+    api.bankAccountsList().then((a) => setBankAccounts(a as BankAccount[]));
+    api.pettyBalance().then((b) => setPettyBalance(b as number));
   }, []);
 
   if (!data) return <p className="text-sm text-stone-400">Loading…</p>;
 
   const salesHint = data.salesDeltaPct === undefined ? undefined
     : `${data.salesDeltaPct >= 0 ? "▲" : "▼"} ${Math.abs(data.salesDeltaPct).toFixed(0)}% from yesterday`;
+
+  const totalBankBalance = bankAccounts.reduce((a, b) => a + b.balance, 0);
+  const trendData = data.trend.map((t) => ({ label: weekdayLabel(t.date), value: t.total }));
+  const paymentSlices = data.paymentBreakdown
+    .filter((p) => p.v > 0)
+    .map((p) => ({ label: p.payment_method, value: p.v, color: PAYMENT_COLORS[p.payment_method] || "#78716c" }));
 
   return (
     <div className="space-y-6">
@@ -62,15 +86,78 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageId) => void }
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Today's Sales" value={money(data.sales)} hint={salesHint} icon={<ShoppingCart size={20} />} tone="green" />
-        <StatCard label="Sales on Credit" value={money(data.salesOnCredit)} hint={`${data.salesOnCreditCount} invoices`} icon={<ReceiptText size={20} />} tone="danger" />
-        <StatCard label="Today's Purchases" value={money(data.purchases)} icon={<Truck size={20} />} />
-        <StatCard label="Today's Profit" value={money(data.profit)} icon={<TrendingUp size={20} />} tone="gold" />
-        <StatCard label="Cash in Hand" value={data.registerOpen ? money(data.cashInHand) : "Register closed"} icon={<Banknote size={20} />} />
-        <StatCard label="Receivables" value={money(data.receivables)} icon={<Wallet size={20} />} />
-        <StatCard label="Payables" value={money(data.payables)} icon={<Wallet size={20} />} />
-        <StatCard label="Stock Value" value={money(data.stockValue)} icon={<Warehouse size={20} />} />
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Today's Performance</h3>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <StatCard label="Today's Sales" value={money(data.sales)} hint={salesHint} icon={<ShoppingCart size={20} />} tone="green" />
+          <StatCard label="Sales on Credit" value={money(data.salesOnCredit)} hint={`${data.salesOnCreditCount} invoices`} icon={<ReceiptText size={20} />} tone="danger" />
+          <StatCard label="Today's Purchases" value={money(data.purchases)} icon={<Truck size={20} />} />
+          <StatCard label="Today's Profit" value={money(data.profit)} icon={<TrendingUp size={20} />} tone="gold" />
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Business Position</h3>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <StatCard label="Cash in Hand" value={data.registerOpen ? money(data.cashInHand) : "Register closed"} icon={<Banknote size={20} />} />
+          <StatCard label="Receivables" value={money(data.receivables)} icon={<Wallet size={20} />} />
+          <StatCard label="Payables" value={money(data.payables)} icon={<Wallet size={20} />} />
+          <StatCard label="Stock Value" value={money(data.stockValue)} icon={<Warehouse size={20} />} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="card">
+          <h3 className="mb-3 text-sm font-semibold text-brand-navy-900">Sales Trend — Last 7 Days</h3>
+          <TrendBarChart data={trendData} />
+        </div>
+
+        <div className="card">
+          <h3 className="mb-3 text-sm font-semibold text-brand-navy-900">Payment Methods — Today</h3>
+          {paymentSlices.length >= 2 ? (
+            <BreakdownDonut data={paymentSlices} centerLabel="Today's Sales" />
+          ) : paymentSlices.length === 1 ? (
+            <div className="flex h-[140px] flex-col items-center justify-center text-center">
+              <p className="text-2xl font-semibold text-brand-navy-900">{money(paymentSlices[0].value)}</p>
+              <p className="text-xs text-stone-400">all via {paymentSlices[0].label} today</p>
+            </div>
+          ) : (
+            <div className="flex h-[140px] items-center justify-center text-sm text-stone-400">No sales recorded yet today</div>
+          )}
+        </div>
+
+        <div className="card space-y-4">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><Wallet size={15} /> Cash Summary</h3>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-1.5 text-stone-500"><Banknote size={14} /> Cash Register</span>
+              <span className={`text-xs font-medium ${register ? "text-brand-green-700" : "text-stone-400"}`}>{register ? "OPEN" : "CLOSED"}</span>
+            </div>
+            <p className="text-lg font-semibold text-brand-navy-900">{register ? money(register.expected) : "—"}</p>
+          </div>
+          <div className="space-y-1">
+            <span className="flex items-center gap-1.5 text-sm text-stone-500"><Landmark size={14} /> Bank Balance ({bankAccounts.length})</span>
+            <p className="text-lg font-semibold text-brand-navy-900">{money(totalBankBalance)}</p>
+          </div>
+          <div className="space-y-1">
+            <span className="flex items-center gap-1.5 text-sm text-stone-500"><PiggyBank size={14} /> Petty Cash</span>
+            <p className="text-lg font-semibold text-brand-navy-900">{money(pettyBalance)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="mb-3 text-sm font-semibold text-brand-navy-900">Today's Mix</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SplitBar segments={[
+            { label: "Retail", value: data.mix.retailSales, color: "#1f6b2a" },
+            { label: "Wholesale", value: data.mix.wholesaleSales, color: "#d98e2c" },
+          ]} />
+          <SplitBar segments={[
+            { label: "Cash", value: data.mix.cashSales, color: "#2a78d6" },
+            { label: "Credit", value: data.mix.creditSales, color: "#eb6834" },
+          ]} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

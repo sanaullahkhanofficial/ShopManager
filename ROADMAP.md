@@ -597,6 +597,64 @@ inert form fields:
   (live spend, red over-budget styling), Categories (toggle, add) — render
   correctly with zero real console errors.
 
+## Phase K — Dashboard v2 (this pass, real, tested)
+
+- **Stat rows, grouped and labeled** — the 8 stat cards now sit under two
+  explicit section headers, "Today's Performance" (Sales, Sales on Credit,
+  Purchases, Profit) and "Business Position" (Cash in Hand, Receivables,
+  Payables, Stock Value), instead of one undifferentiated grid — same real
+  data as before, clearer grouping.
+- **Dependency-free chart primitives** — a new `src/components/ui/charts.tsx`
+  (`TrendBarChart`, `BreakdownDonut`, `SplitBar`) built as plain inline
+  SVG/CSS rather than pulling in a charting library, keeping the offline-
+  first build free of any new dependency. Reusable by the Reports suite
+  (Phase L).
+- **Real 7-day sales trend** — a new field on the existing `dashboard`
+  handler (`trend`) does a real `GROUP BY sale_date` over the last 7 days
+  (zero-filled for no-sale days) and renders as a bar chart with a
+  per-bar hover tooltip and a direct label on today's bar.
+- **Real Payment Methods donut, done per the dataviz skill's own guidance**
+  — a 2-slice donut is an explicit anti-pattern (misleading, worse than a
+  stat tile), so instead of a naive "Retail vs Wholesale" 2-slice pie, the
+  donut chart shows today's **real payment-method breakdown** (`payment_method`
+  grouped and summed for today, an honest multi-category part-to-whole with
+  however many methods were actually used) with a fixed color assigned per
+  method (Cash is always the same blue, Credit always the same green,
+  etc. — never reassigned by rank). Degrades gracefully to a plain stat
+  line when only one payment method was used today (also per the skill:
+  a 1-slice "chart" is just a number) and to an empty state with none yet.
+- **Today's Mix, as validated split bars instead of 2-slice donuts** — the
+  Retail-vs-Wholesale and Cash-vs-Credit comparisons the reference design
+  calls for are exactly the "2-slice pie" anti-pattern the skill flags, so
+  they're rendered as two-segment horizontal split bars with direct end
+  labels and percentages instead — real data from `computeSummary`'s
+  already-tested `retailSales`/`wholesaleSales`/`cashSales`/`creditSales`
+  fields for today, reused via the `dashboard` handler's new `mix` field
+  rather than a second query path.
+- **Cash Summary panel** — a new dashboard panel combining three already-
+  real sources into one glance: the open/closed cash register and its
+  expected total (`cash:current`), total balance across all bank accounts
+  (`bank:accountsList`, summed client-side), and the petty cash balance
+  (`petty:balance`) — all Phase I endpoints, no new backend needed for
+  this panel.
+- **Colorblind-safety validated, not eyeballed** — every categorical pair
+  used (brand green/gold for Retail-Wholesale, blue/orange for Cash-Credit,
+  and the 7-color payment-method sequence borrowed from the dataviz
+  skill's own validated default categorical theme) was run through the
+  skill's `validate_palette.js` and passes every hard gate; the one WARN
+  (gold's contrast against the light surface) is satisfied by always
+  showing direct value labels alongside the color, never color alone.
+- Verified with `scripts/test-phaseK.cjs` (12 assertions: the trend array
+  is always exactly 7 entries ending today with a numeric total on every
+  day including zero-sale ones, `paymentBreakdown` reports the real per-
+  method totals from real sales, and `mix` correctly reflects a real
+  retail-cash sale and a real wholesale-credit sale made today) — all
+  pass, plus all eleven earlier suites re-run clean. Visual smoke test
+  confirms the grouped stat rows, the trend chart (with hover/direct
+  labels), the payment-method donut with its legend and percentages, the
+  Cash Summary panel, and both split bars all render correctly with zero
+  console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -632,10 +690,10 @@ Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
 → **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 → **J**
-Expenses v2 — all done (see sections above). Next: **K** Dashboard v2
-(stat rows, quick actions, trend/donut charts, cash summary panel) → **L**
-Reports suite → **M** Users & Permissions v2 (real matrix enforcement) →
-**N** Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
+Expenses v2 → **K** Dashboard v2 — all done (see sections above). Next:
+**L** Reports suite (Sales & Revenue, P&L v2, Inventory, Customer,
+Supplier) → **M** Users & Permissions v2 (real matrix enforcement) → **N**
+Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
 receipt polish to match the physical mockup.
 
 ## Still not started after Phase 0/A–N

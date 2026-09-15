@@ -241,6 +241,32 @@ any other network resource.
   which works normally inside the real Electron window; not a regression.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase K checks (this session)
+- `scripts/test-phaseK.cjs` (`npm run test:phaseK`) — 12 assertions: the
+  dashboard's `trend` field is always exactly 7 days ending today with a
+  numeric total on every day (including zero-sale days), `paymentBreakdown`
+  reports the real per-payment-method totals from actual sales, and `mix`
+  correctly reflects a real retail-cash sale and a real wholesale-credit
+  sale recorded today. All passed. The eleven earlier suites
+  (`test-accounting`, `test-phase0`, `test-phaseB` through `test-phaseJ`)
+  were re-run against the Phase K schema and still pass unchanged.
+- Every categorical color pair used on the new charts was run through the
+  dataviz skill's `validate_palette.js` rather than eyeballed: brand
+  green/gold (Retail vs Wholesale) passes all hard gates with a contrast
+  WARN resolved by always showing direct value labels; blue/orange (Cash
+  vs Credit) passes clean; the 7-color payment-method sequence is the
+  skill's own validated default categorical theme, assigned in a fixed
+  per-method mapping (Cash is always blue, Credit always green, etc.).
+- Visual smoke test (Playwright, `window.api` stubbed with realistic
+  dashboard/register/bank/petty data): the two grouped stat rows ("Today's
+  Performance" / "Business Position"), the Sales Trend bar chart (direct
+  label on today's bar, weekday x-axis), the Payment Methods donut (legend
+  with percentages, center total), the Cash Summary panel (register status,
+  total bank balance, petty cash), and both Today's Mix split bars (Retail/
+  Wholesale, Cash/Credit with direct end labels) all render correctly with
+  zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
