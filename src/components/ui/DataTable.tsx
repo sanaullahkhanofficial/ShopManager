@@ -15,9 +15,11 @@ interface DataTableProps<T> {
   emptyLabel?: string;
   /** Enables built-in client-side pagination (e.g. 20) with a page-size selector and page numbers. Omit for a plain unpaginated table. */
   pageSize?: number;
+  /** Makes each row clickable (e.g. select a record to view detail in a side panel). */
+  onRowClick?: (row: T) => void;
 }
 
-export function DataTable<T>({ columns, rows, keyField, emptyLabel, pageSize }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, keyField, emptyLabel, pageSize, onRowClick }: DataTableProps<T>) {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(pageSize || 20);
   useEffect(() => setPage(1), [rows.length, perPage]);
@@ -37,7 +39,11 @@ export function DataTable<T>({ columns, rows, keyField, emptyLabel, pageSize }: 
           </thead>
           <tbody>
             {pageRows.map((row) => (
-              <tr key={keyField(row)} className="hover:bg-stone-50">
+              <tr
+                key={keyField(row)}
+                className={`hover:bg-stone-50 ${onRowClick ? "cursor-pointer" : ""}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {columns.map((c, i) => <td key={i} className={c.className}>{c.render(row)}</td>)}
               </tr>
             ))}

@@ -86,6 +86,14 @@ export const api = {
   cashOpen: (x: Record<string, unknown>) => invoke("cash:open", x),
   cashTransaction: (x: Record<string, unknown>) => invoke("cash:transaction", x),
   cashClose: (x: Record<string, unknown>) => invoke("cash:close", x),
+  cashTransfer: (x: Record<string, unknown>) => invoke("cash:transfer", x),
+
+  bankAccountsList: () => invoke("bank:accountsList"),
+  bankAccountSave: (x: Record<string, unknown>) => invoke("bank:accountSave", x),
+  bankTransactionsList: (accountId: number) => invoke("bank:transactionsList", accountId),
+
+  pettyList: () => invoke("petty:list"),
+  pettyBalance: () => invoke<number>("petty:balance"),
 
   dashboard: () => invoke("dashboard"),
   reportsSummary: (range: { from: string; to: string }) => invoke("reports:summary", range),

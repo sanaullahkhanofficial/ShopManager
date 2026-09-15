@@ -350,6 +350,37 @@ export interface LedgerEntry {
   created_at: string;
 }
 
+export interface BankAccount {
+  id: number;
+  name: string;
+  account_number: string;
+  bank_name: string;
+  opening_balance: number;
+  balance: number;
+  status: string;
+  created_at: string;
+}
+
+export interface BankTransaction {
+  id: number;
+  account_id: number;
+  direction: "IN" | "OUT";
+  category: string;
+  amount: number;
+  reference: string;
+  note: string;
+  created_at: string;
+}
+
+export interface PettyCashEntry {
+  id: number;
+  direction: "IN" | "OUT";
+  amount: number;
+  reference: string;
+  note: string;
+  created_at: string;
+}
+
 export type ReturnType = "Refund" | "Exchange";
 
 export interface SalesReturn {

@@ -1143,8 +1143,15 @@ function registerIpc() {
     SELECT b.*, COALESCE(b.opening_balance,0)+COALESCE((SELECT SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END) FROM bank_transactions t WHERE t.account_id=b.id),0) balance
     FROM bank_accounts b WHERE b.status='active' ORDER BY b.name`).all());
   ipcMain.handle("bank:accountSave", (_, x) => {
-    if (x.id) db.prepare("UPDATE bank_accounts SET name=?,account_number=?,bank_name=? WHERE id=?").run(x.name, x.account_number || "", x.bank_name || "", x.id);
-    else db.prepare("INSERT INTO bank_accounts(name,account_number,bank_name,opening_balance,created_at) VALUES(?,?,?,?,?)").run(x.name, x.account_number || "", x.bank_name || "", x.opening_balance || 0, now());
+    if (x.id) {
+      const existing = db.prepare("SELECT * FROM bank_accounts WHERE id=?").get(x.id);
+      const merged = { ...existing, ...x };
+      db.prepare("UPDATE bank_accounts SET name=?,account_number=?,bank_name=?,status=? WHERE id=?")
+        .run(merged.name, merged.account_number || "", merged.bank_name || "", merged.status || "active", x.id);
+    } else {
+      db.prepare("INSERT INTO bank_accounts(name,account_number,bank_name,opening_balance,created_at) VALUES(?,?,?,?,?)")
+        .run(x.name, x.account_number || "", x.bank_name || "", x.opening_balance || 0, now());
+    }
     return true;
   });
   ipcMain.handle("bank:transactionsList", (_, accountId) => db.prepare("SELECT * FROM bank_transactions WHERE account_id=? ORDER BY id DESC").all(accountId));

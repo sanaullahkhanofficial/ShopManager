@@ -197,6 +197,26 @@ any other network resource.
   correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase I checks (this session)
+- `scripts/test-phaseI.cjs` (`npm run test:phaseI`) — 14 assertions: a new
+  bank account starts at its opening balance; deactivating/reactivating a
+  bank account is safe (the partial-update fix); cash→bank, bank→petty and
+  petty→cash transfers each correctly move money on both real ledgers with
+  the right sign and are reflected in `bank:transactionsList`/`petty:list`;
+  a cash-involving transfer is rejected while the register is closed; and
+  a bank↔petty transfer (no cash leg) still works while it's closed. All
+  passed. The nine earlier suites (`test-accounting`, `test-phase0`,
+  `test-phaseB` through `test-phaseH`) were re-run against the Phase I
+  schema and still pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed with a realistic
+  open register, bank account, and petty cash data): the four-tab Cash
+  Management layout, the Register tab (unchanged content), the Bank
+  Accounts tab with its list, click-to-view transaction detail panel and
+  Add Account form, the Petty Cash tab's balance and history, and the
+  Transfer tab performing a real transfer (success toast) all render
+  correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

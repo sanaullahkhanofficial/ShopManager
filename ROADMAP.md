@@ -503,6 +503,52 @@ inert form fields:
   column, and the post-save "Credit Note Issued" panel all render
   correctly with zero console errors.
 
+## Phase I — Cash Management v2 (this pass, real, tested)
+
+- **Register redesign** — the existing open/count/close-day flow is unchanged
+  in substance (still real, still Section 27/69-verified) but now lives
+  inside a tabbed Cash Management page instead of being the whole page,
+  matching the reference design's grouping of cash, bank, and petty cash
+  under one section.
+- **Bank Accounts, given a real UI for the first time** — `bank_accounts`/
+  `bank_transactions` and the `bank:accountsList`/`accountSave`/
+  `transactionsList` handlers have existed since Phase 0 but had no screen.
+  The new Bank Accounts tab lists every account with its live computed
+  balance, a form to add one, and a click-to-select detail panel showing
+  that account's real transaction history.
+- **Petty Cash, also given a real UI for the first time** — the current
+  balance (`petty:balance`) and full transaction history (`petty:list`)
+  are now visible; funding or drawing down petty cash happens through the
+  Transfer tab, same backend as before.
+- **Real three-way Cash Transfer UI** — a single From/To form (Cash
+  Register, Petty Cash, or any bank account by name) drives the existing
+  `cash:transfer` transaction, which posts two linked, correctly-signed
+  entries on whichever real ledgers are involved. The UI honestly blocks a
+  cash-involving transfer with a clear message when no register is open,
+  matching the backend's own guard, and still allows a bank↔petty transfer
+  with the register closed since neither leg touches cash.
+- **Fixed the same partial-update bug class** (Phases C/D/E) in
+  `bank:accountSave`, found proactively by code inspection before any UI
+  used it: an update payload now merges onto the existing row instead of
+  overwriting every column positionally, so a `{id, status: "inactive"}`
+  deactivate call can't null out the account's name/bank/account number.
+  Deactivate/reactivate support was added to the same handler.
+- **New reusable capability**: `DataTable` gained an optional `onRowClick`
+  prop (Bank Accounts' click-to-view-detail pattern), available to every
+  future page that wants a selectable list without a separate "View"
+  button column.
+- Verified with `scripts/test-phaseI.cjs` (14 assertions: opening balance
+  correctness, deactivate/reactivate safety, cash→bank→petty→cash transfers
+  each correctly moving money on both real ledgers with the right sign,
+  transaction history endpoints reflecting the real legs, a cash-involving
+  transfer rejected while the register is closed, and a bank↔petty transfer
+  still working while it's closed) — all pass, plus all nine earlier
+  suites re-run clean. Visual smoke test confirms the four-tab layout, the
+  register (unchanged), the bank account list with a working click-to-view
+  detail panel and add-account form, the petty cash balance and history,
+  and a real transfer's success toast all render correctly with zero
+  console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -537,12 +583,12 @@ These are named explicitly so nobody mistakes silence for "it exists":
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
-→ **G** Purchases v2 → **H** Returns v2 — all done (see sections above).
-Next: **I** Cash Management v2 (register redesign, bank transactions,
-petty cash, cash transfer) → **J** Expenses v2 → **K** Dashboard v2 →
-**L** Reports suite → **M** Users & Permissions v2 (real matrix
-enforcement) → **N** Invoice/Printer Settings + 58mm dual-token + real
-barcode rendering + receipt polish to match the physical mockup.
+→ **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 — all
+done (see sections above). Next: **J** Expenses v2 (recurring, budgets,
+receipt attachment, category management) → **K** Dashboard v2 → **L**
+Reports suite → **M** Users & Permissions v2 (real matrix enforcement) →
+**N** Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
+receipt polish to match the physical mockup.
 
 ## Still not started after Phase 0/A–N
 
