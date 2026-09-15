@@ -45,6 +45,22 @@
   require frontend changes to keep compiling; wiring them into the UI is the
   page-level phases' job).
 
+## Phase A visual verification (this session)
+Since this Linux container can't run the Electron GUI, `dist/` (after
+`npm run build:web`) was served standalone on a local port and driven with
+Playwright/chromium (`window.api` stubbed with representative data so the
+real component tree renders without a live backend). Confirmed via
+screenshot: hero top bar (logo, business name in the display font, tagline,
+wheat-field backdrop, script accent, live date/time pill, notification bell
+with working badge/dropdown, profile pill), sidebar (emblem, nav, AI
+Assistant "New" badge, decorative panel, location footer), Dashboard (Quick
+Actions grid, stat cards including the new sales-delta/credit-sales tiles,
+low stock and recent bills tables), footer bar, and Settings page — all
+render correctly with **zero console/page errors**. Self-hosted fonts
+(Inter/Playfair Display/Dancing Script/Noto Nastaliq Urdu) load from the
+bundled build output, confirming no runtime dependency on Google Fonts or
+any other network resource.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

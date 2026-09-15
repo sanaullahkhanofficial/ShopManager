@@ -62,6 +62,14 @@ export const api = {
   reportsSummary: (range: { from: string; to: string }) => invoke("reports:summary", range),
   auditList: (limit = 200) => invoke("audit:list", limit),
 
+  locationsList: () => invoke("locations:list"),
+
+  notificationsList: (limit = 50) => invoke("notifications:list", limit),
+  notificationsUnreadCount: () => invoke("notifications:unreadCount"),
+  notificationsMarkRead: (id: number) => invoke("notifications:markRead", id),
+  notificationsMarkAllRead: () => invoke("notifications:markAllRead"),
+  notificationsRefresh: () => invoke("notifications:refresh"),
+
   appInfo: () => invoke("app:info"),
   backupCreate: () => invoke("backup:create"),
   dbIntegrity: () => invoke("db:integrity"),

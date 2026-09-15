@@ -38,7 +38,9 @@ module.exports = {
       },
       fontFamily: {
         sans: ["Inter", "Segoe UI", "system-ui", "sans-serif"],
-        urdu: ["Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "serif"]
+        urdu: ["Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "serif"],
+        display: ["\"Playfair Display\"", "Georgia", "serif"],
+        script: ["\"Dancing Script\"", "\"Segoe Script\"", "cursive"]
       },
       borderRadius: {
         card: "10px"

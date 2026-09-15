@@ -1,30 +1,41 @@
 import React from "react";
-import { Circle, Languages, LogOut } from "lucide-react";
-import { useLang } from "../../lib/i18n";
-import { Button } from "../ui/Button";
+import { Leaf } from "lucide-react";
+import { Logo } from "./Logo";
+import { WheatFieldBackdrop } from "./WheatFieldBackdrop";
+import { DateTimePill } from "./DateTimePill";
+import { NotificationBell } from "./NotificationBell";
+import { ProfilePill } from "./ProfilePill";
+import type { AuthUser, Settings } from "../../types";
 
-export function TopBar({ title, subtitle, onLogout, registerOpen }: {
-  title: string; subtitle?: string; onLogout: () => void; registerOpen?: boolean;
+export function TopBar({ user, settings, onLogout }: {
+  user: AuthUser; settings: Settings; onLogout: () => void;
 }) {
-  const { lang, setLang, t } = useLang();
   return (
-    <header className="flex items-center justify-between border-b border-stone-200 bg-white px-6 py-3">
-      <div>
-        <h1 className="text-lg font-semibold text-brand-navy-900">{title}</h1>
-        {subtitle && <p className="text-xs text-stone-500">{subtitle}</p>}
+    <header className="flex items-stretch overflow-hidden border-b border-stone-200 bg-white">
+      <div className="flex items-center gap-3 px-6 py-3">
+        <Logo size={56} />
+        <div>
+          <h1 className="font-display text-xl font-bold leading-tight text-brand-green-800 sm:text-2xl">
+            {settings.business_name || "Haji Abdul Manan & Abdul Hanan"}
+          </h1>
+          <p className="font-display text-sm font-semibold text-brand-green-600 sm:text-base">Atta Dealer Pishin</p>
+          <p className="mt-0.5 hidden items-center gap-1 text-xs text-stone-500 md:flex">
+            <Leaf size={12} className="text-brand-green-500" /> Quality Products&nbsp;|&nbsp;Trusted Service&nbsp;|&nbsp;A Prosperous Tomorrow
+          </p>
+        </div>
       </div>
-      <div className="flex items-center gap-3">
-        <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${registerOpen ? "bg-brand-green-50 text-brand-green-700" : "bg-stone-100 text-stone-500"}`}>
-          <Circle size={8} className="fill-current" /> {registerOpen ? "Register Open" : "Register Closed"}
+
+      <div className="relative ml-auto hidden min-w-[340px] flex-1 items-center gap-4 px-6 py-3 lg:flex">
+        <WheatFieldBackdrop />
+        <span className="relative z-10 hidden font-script text-xl text-brand-navy-900/90 xl:block" style={{ textShadow: "0 1px 2px rgba(255,255,255,0.6)" }}>
+          From Our Fields to a Better Future
         </span>
-        <button
-          className="flex items-center gap-1 rounded-md border border-stone-300 px-2 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-50"
-          onClick={() => setLang(lang === "en" ? "ur" : "en")}
-          title="Toggle English / Urdu"
-        >
-          <Languages size={14} /> {lang === "en" ? "EN" : "اردو"}
-        </button>
-        <Button variant="ghost" onClick={onLogout}><LogOut size={15} /> {t("logout")}</Button>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 px-6 py-3">
+        <DateTimePill />
+        <NotificationBell />
+        <ProfilePill user={user} onLogout={onLogout} />
       </div>
     </header>
   );

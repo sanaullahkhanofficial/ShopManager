@@ -174,6 +174,7 @@ export interface CashTransaction {
 
 export interface DashboardData {
   sales: number;
+  salesDeltaPct: number;
   purchases: number;
   expenses: number;
   profit: number;
@@ -183,6 +184,8 @@ export interface DashboardData {
   stockValue: number;
   cashInHand: number | null;
   registerOpen: boolean;
+  salesOnCredit: number;
+  salesOnCreditCount: number;
 }
 
 export interface ReportSummary {
@@ -201,6 +204,25 @@ export interface ReportSummary {
   creditSales: number;
   retailSales: number;
   wholesaleSales: number;
+}
+
+export interface AppNotification {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  entity: string | null;
+  entity_id: number | null;
+  severity: "info" | "warning" | "critical";
+  is_read: number;
+  created_at: string;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
 }
 
 export interface AuthUser {

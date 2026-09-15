@@ -22,6 +22,7 @@ const dict: Record<string, { en: string; ur: string }> = {
   users: { en: "Users & Permissions", ur: "صارفین" },
   settings: { en: "Settings", ur: "ترتیبات" },
   backup: { en: "Backup & Health", ur: "بیک اپ" },
+  aiAssistant: { en: "AI Assistant", ur: "AI اسسٹنٹ" },
   logout: { en: "Logout", ur: "لاگ آؤٹ" },
   customer: { en: "Customer", ur: "گاہک" },
   supplier: { en: "Supplier", ur: "سپلائر" },

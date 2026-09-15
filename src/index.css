@@ -1,3 +1,16 @@
+/* Self-hosted fonts (Section 76: the app must work fully offline, so no
+   Google Fonts CDN — these ship as bundled files via @fontsource and are
+   pulled into the Vite build). */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/playfair-display/600.css";
+@import "@fontsource/playfair-display/700.css";
+@import "@fontsource/dancing-script/600.css";
+@import "@fontsource/noto-nastaliq-urdu/400.css";
+@import "@fontsource/noto-nastaliq-urdu/700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,7 +18,7 @@
 @layer base {
   html, body, #root { height: 100%; }
   body { @apply bg-stone-100 text-brand-navy-900 antialiased; }
-  [dir="rtl"] { font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", serif; }
+  [dir="rtl"] { font-family: "Noto Nastaliq Urdu", serif; }
 }
 
 @layer components {

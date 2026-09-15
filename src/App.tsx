@@ -17,15 +17,17 @@ import { Reports } from "./pages/Reports";
 import { Users } from "./pages/Users";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Backup } from "./pages/Backup";
-import { Sidebar, type PageId } from "./components/layout/Sidebar";
+import { AIAssistant } from "./pages/AIAssistant";
+import { Sidebar, NAV_ICONS, type PageId } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
-import type { AuthUser, DashboardData, Settings } from "./types";
+import { Footer } from "./components/layout/Footer";
+import type { AuthUser, Settings } from "./types";
 
 const TITLES: Record<PageId, string> = {
   dashboard: "Dashboard", pos: "POS — Sales Counter", purchases: "Purchases", products: "Products & Inventory",
   customers: "Customers (Shops)", suppliers: "Suppliers", salesReturns: "Sales Returns", purchaseReturns: "Purchase Returns",
   cash: "Cash Management", payments: "Payments", expenses: "Expenses", reports: "Reports",
-  users: "Users & Permissions", settings: "Settings", backup: "Backup & Health",
+  users: "Users & Permissions", settings: "Settings", backup: "Backup & Health", aiAssistant: "AI Assistant",
 };
 
 export default function App() {
@@ -33,25 +35,26 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [page, setPage] = useState<PageId>("dashboard");
-  const [registerOpen, setRegisterOpen] = useState(false);
 
   useEffect(() => { api.settingsGet().then((s) => setSettings(s as Settings)); }, []);
   useEffect(() => { document.documentElement.setAttribute("dir", dir); }, [dir]);
-  useEffect(() => {
-    if (!user) return;
-    api.dashboard().then((d) => setRegisterOpen((d as DashboardData).registerOpen));
-  }, [user, page]);
 
   if (!settings) return <div className="flex min-h-screen items-center justify-center text-stone-400">Loading…</div>;
   if (!user) return <Login onLogin={setUser} />;
+
+  const PageIcon = NAV_ICONS[page];
 
   return (
     <div className="flex h-screen overflow-hidden bg-stone-100">
       <Sidebar page={page} setPage={setPage} user={user} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar title={TITLES[page]} subtitle={settings.business_title} onLogout={() => setUser(null)} registerOpen={registerOpen} />
+        <TopBar user={user} settings={settings} onLogout={() => setUser(null)} />
+        <div className="flex items-center gap-2 border-b border-stone-200 bg-white px-6 py-2.5">
+          <PageIcon size={16} className="text-brand-green-700" />
+          <h2 className="text-sm font-semibold text-brand-navy-900">{TITLES[page]}</h2>
+        </div>
         <main className="flex-1 overflow-y-auto p-6">
-          {page === "dashboard" && <Dashboard />}
+          {page === "dashboard" && <Dashboard onNavigate={setPage} />}
           {page === "pos" && <POS user={user} settings={settings} />}
           {page === "purchases" && <Purchases user={user} />}
           {page === "products" && <Products user={user} />}
@@ -66,7 +69,9 @@ export default function App() {
           {page === "users" && <Users user={user} />}
           {page === "settings" && <SettingsPage value={settings} onSaved={setSettings} />}
           {page === "backup" && <Backup />}
+          {page === "aiAssistant" && <AIAssistant />}
         </main>
+        <Footer settings={settings} />
       </div>
     </div>
   );

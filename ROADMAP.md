@@ -134,6 +134,49 @@ post instantly rather than requiring a second-user approval step; SMS/
 WhatsApp/email "send" buttons seen in the reference images will be stubbed
 in the UI (Phase D/E) until a real messaging provider is connected.
 
+## Phase A — Shell v2 (this pass, real, tested)
+
+- **Self-hosted fonts, fully offline** — Inter, Playfair Display (business
+  name/display headings), Dancing Script (the "From Our Fields to a Better
+  Future" accent) and Noto Nastaliq Urdu, all bundled via `@fontsource`
+  packages rather than a Google Fonts CDN link, because Section 4 requires
+  the app to keep working with zero internet. `vite build` embeds the woff2
+  files locally — verified nothing in the shell depends on network access.
+- **Hero top bar** — business identity in the display font, tagline row,
+  a code-generated wheat-field backdrop (gradient + SVG wheat-ear glyphs —
+  see the imagery note below) behind the script-font accent line, a live
+  Asia/Karachi date/time pill, a real notification bell (unread badge,
+  dropdown, mark-read/mark-all-read, all wired to the Phase 0
+  `notifications:*` IPC — not cosmetic), and a profile pill with logout.
+- **Sidebar v2** — the circular emblem badge (`Logo`, also reused on
+  Login), same code-generated wheat motif in a small decorative panel,
+  location footer, and a new **AI Assistant** nav item. It links to a real
+  page that honestly states the feature is planned rather than a dead
+  button (Section 59's "distinguish real data from AI explanation" and
+  "never invent" principles apply even to the placeholder).
+- **Footer bar** on every page (business name · page label · version).
+- **Quick Actions** panel added to the Dashboard (New Sale, New Purchase,
+  Add Product, Add Customer, Add Supplier, Expense) — real navigation, no
+  auto-opened modals yet (that refinement waits for Phase K).
+- Dashboard KPIs now show the Phase 0 `salesDeltaPct`/`salesOnCredit`
+  fields the backend already computed.
+- **Verified visually**, not just by `tsc`/`vite build`: since this
+  session's Linux container can't run the Electron GUI, the built `dist/`
+  was served standalone and driven with Playwright (chromium), stubbing
+  `window.api` so the real component tree renders without a live backend.
+  Screenshots confirm the hero banner, sidebar, fonts, notification bell,
+  quick actions and footer all render correctly with zero console errors
+  across Dashboard and a few other pages.
+
+**Placeholder imagery note:** per the owner's decision, real business
+photography isn't available yet. Rather than fetch unlicensed stock photos
+(and break offline mode, since a live fetch would depend on network at
+runtime), the wheat-field backdrop is generated at build time from SVG
+gradients and simple wheat-ear glyphs — visually evokes the mockups'
+photography without any licensing risk or runtime dependency. Swap
+`WheatFieldBackdrop.tsx` for real photography (as a bundled image asset,
+still offline-safe) whenever it's supplied.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
