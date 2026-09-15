@@ -8,6 +8,15 @@ const Database = require("better-sqlite3");
 // Every financial action (sale, purchase, payment, expense, withdrawal) is a
 // single atomic db.transaction() that updates inventory, ledgers and the cash
 // register together, or not at all.
+//
+// Phase 0 additions on top of the v1 foundation: per-location stock, real
+// Purchase Orders (draft -> sent -> received -> converts to a Purchase),
+// configurable payment methods, tax settings, a notifications table, a
+// role/permission matrix (data layer — enforcement UI is a later phase),
+// bank accounts + petty cash sub-ledgers with cash transfers between them,
+// recurring expenses + budgets, customer groups, CNIC/NTN fields, an
+// optional batch/lot reference on returns, FIFO aging for customer/supplier
+// ledgers, and period-over-period comparison for reports.
 // ---------------------------------------------------------------------------
 
 let db, win, dataDir;
@@ -29,6 +38,26 @@ function verifyPassword(pw, stored) {
     return false;
   }
 }
+
+// Section 39 permission list. Data layer only in Phase 0 — IPC-boundary
+// enforcement + the matrix editor UI land in Phase M.
+const PERMISSIONS = [
+  "dashboard.view", "sales.create", "sales.edit", "sales.delete", "sales.return",
+  "purchase.create", "purchase.edit", "purchase.delete", "purchase.return",
+  "inventory.view", "inventory.adjust", "customers.view", "customers.create", "customers.payment",
+  "suppliers.view", "suppliers.create", "suppliers.payment", "cash.view", "cash.manage",
+  "expenses.create", "reports.view", "reports.export", "users.manage", "settings.manage", "printer.manage",
+];
+const DEFAULT_ROLE_PERMISSIONS = {
+  Owner: PERMISSIONS,
+  Manager: PERMISSIONS.filter((p) => p !== "users.manage" && p !== "settings.manage"),
+  Accountant: ["dashboard.view", "cash.view", "cash.manage", "customers.view", "customers.payment", "suppliers.view", "suppliers.payment", "expenses.create", "reports.view", "reports.export", "inventory.view"],
+  "Sales Staff": ["dashboard.view", "sales.create", "sales.edit", "sales.return", "customers.view", "customers.create", "inventory.view", "reports.view"],
+  "Purchase Staff": ["dashboard.view", "purchase.create", "purchase.edit", "purchase.return", "suppliers.view", "suppliers.create", "inventory.view", "inventory.adjust", "reports.view"],
+  "Inventory Staff": ["dashboard.view", "inventory.view", "inventory.adjust", "reports.view"],
+  Cashier: ["dashboard.view", "sales.create", "cash.view", "customers.view"],
+  Viewer: ["dashboard.view", "inventory.view", "customers.view", "suppliers.view", "cash.view", "reports.view"],
+};
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -52,6 +81,11 @@ function initDb() {
     status TEXT DEFAULT 'active', created_at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS locations(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, type TEXT DEFAULT 'Store',
+    status TEXT DEFAULT 'active', created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS categories(
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, name_urdu TEXT DEFAULT '',
     image_path TEXT DEFAULT '', status TEXT DEFAULT 'active', created_at TEXT NOT NULL
@@ -66,24 +100,49 @@ function initDb() {
     FOREIGN KEY(category_id) REFERENCES categories(id)
   );
 
+  -- Per-location stock detail. products.stock stays the authoritative cached
+  -- TOTAL across all locations so every existing total-stock query keeps
+  -- working unchanged; this table only adds the per-location breakdown.
+  CREATE TABLE IF NOT EXISTS product_location_stock(
+    product_id INTEGER NOT NULL, location_id INTEGER NOT NULL, stock REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY(product_id, location_id),
+    FOREIGN KEY(product_id) REFERENCES products(id), FOREIGN KEY(location_id) REFERENCES locations(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS customer_groups(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS customers(
     id INTEGER PRIMARY KEY AUTOINCREMENT, shop_name TEXT, name TEXT NOT NULL, phone TEXT, whatsapp TEXT,
-    address TEXT, city TEXT, area TEXT, customer_type TEXT DEFAULT 'Retail',
+    address TEXT, city TEXT, area TEXT, customer_type TEXT DEFAULT 'Retail', cnic TEXT, group_id INTEGER,
     credit_limit REAL DEFAULT 0, opening_balance REAL DEFAULT 0, notes TEXT,
     status TEXT DEFAULT 'active', created_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS suppliers(
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, contact_person TEXT, phone TEXT, whatsapp TEXT,
-    address TEXT, city TEXT, category TEXT, opening_balance REAL DEFAULT 0, notes TEXT,
-    status TEXT DEFAULT 'active', created_at TEXT NOT NULL
+    address TEXT, city TEXT, category TEXT, ntn TEXT, payment_term_days INTEGER DEFAULT 0, products_supplied TEXT,
+    opening_balance REAL DEFAULT 0, notes TEXT, status TEXT DEFAULT 'active', created_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS invoice_counters(prefix TEXT NOT NULL, date_key TEXT NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY(prefix, date_key));
 
+  CREATE TABLE IF NOT EXISTS po_orders(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, po_no TEXT UNIQUE NOT NULL, supplier_id INTEGER, location_id INTEGER,
+    status TEXT DEFAULT 'DRAFT', expected_date TEXT, notes TEXT, user_id INTEGER, created_at TEXT NOT NULL,
+    FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
+  );
+  CREATE TABLE IF NOT EXISTS po_items(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, po_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
+    quantity REAL NOT NULL, rate REAL NOT NULL, received_quantity REAL DEFAULT 0,
+    FOREIGN KEY(po_id) REFERENCES po_orders(id), FOREIGN KEY(product_id) REFERENCES products(id)
+  );
+
   CREATE TABLE IF NOT EXISTS sales(
     id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_no TEXT UNIQUE NOT NULL, customer_id INTEGER, mode TEXT DEFAULT 'Retail',
-    subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, total REAL NOT NULL, paid REAL DEFAULT 0, balance REAL DEFAULT 0,
+    subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax REAL NOT NULL DEFAULT 0,
+    total REAL NOT NULL, paid REAL DEFAULT 0, balance REAL DEFAULT 0, location_id INTEGER,
     payment_method TEXT DEFAULT 'Cash', cashier_id INTEGER, status TEXT DEFAULT 'COMPLETED', sale_date TEXT NOT NULL, created_at TEXT NOT NULL,
     FOREIGN KEY(customer_id) REFERENCES customers(id)
   );
@@ -96,18 +155,19 @@ function initDb() {
 
   CREATE TABLE IF NOT EXISTS sales_returns(
     id INTEGER PRIMARY KEY AUTOINCREMENT, return_no TEXT UNIQUE NOT NULL, sale_id INTEGER NOT NULL, customer_id INTEGER,
-    total REAL NOT NULL, reason TEXT, refund_cash REAL DEFAULT 0, user_id INTEGER, created_at TEXT NOT NULL,
+    return_type TEXT DEFAULT 'Refund', total REAL NOT NULL, reason TEXT, refund_cash REAL DEFAULT 0, user_id INTEGER, created_at TEXT NOT NULL,
     FOREIGN KEY(sale_id) REFERENCES sales(id)
   );
   CREATE TABLE IF NOT EXISTS sales_return_items(
     id INTEGER PRIMARY KEY AUTOINCREMENT, return_id INTEGER NOT NULL, sale_item_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity REAL NOT NULL, rate REAL NOT NULL, amount REAL NOT NULL,
+    quantity REAL NOT NULL, rate REAL NOT NULL, amount REAL NOT NULL, batch_ref TEXT,
     FOREIGN KEY(return_id) REFERENCES sales_returns(id)
   );
 
   CREATE TABLE IF NOT EXISTS purchases(
-    id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_no TEXT UNIQUE NOT NULL, supplier_id INTEGER,
-    subtotal REAL NOT NULL DEFAULT 0, total REAL NOT NULL, paid REAL DEFAULT 0, balance REAL DEFAULT 0,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_no TEXT UNIQUE NOT NULL, supplier_id INTEGER, po_id INTEGER, location_id INTEGER,
+    subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax REAL NOT NULL DEFAULT 0, total REAL NOT NULL,
+    paid REAL DEFAULT 0, balance REAL DEFAULT 0,
     payment_method TEXT DEFAULT 'Cash', notes TEXT, status TEXT DEFAULT 'COMPLETED',
     purchase_date TEXT NOT NULL, created_at TEXT NOT NULL, user_id INTEGER,
     FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
@@ -120,12 +180,12 @@ function initDb() {
 
   CREATE TABLE IF NOT EXISTS purchase_returns(
     id INTEGER PRIMARY KEY AUTOINCREMENT, return_no TEXT UNIQUE NOT NULL, purchase_id INTEGER NOT NULL, supplier_id INTEGER,
-    total REAL NOT NULL, reason TEXT, user_id INTEGER, created_at TEXT NOT NULL,
+    total REAL NOT NULL, reason TEXT, credit_note_no TEXT, user_id INTEGER, created_at TEXT NOT NULL,
     FOREIGN KEY(purchase_id) REFERENCES purchases(id)
   );
   CREATE TABLE IF NOT EXISTS purchase_return_items(
     id INTEGER PRIMARY KEY AUTOINCREMENT, return_id INTEGER NOT NULL, purchase_item_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-    quantity REAL NOT NULL, rate REAL NOT NULL, amount REAL NOT NULL,
+    quantity REAL NOT NULL, rate REAL NOT NULL, amount REAL NOT NULL, batch_ref TEXT,
     FOREIGN KEY(return_id) REFERENCES purchase_returns(id)
   );
 
@@ -143,7 +203,15 @@ function initDb() {
 
   CREATE TABLE IF NOT EXISTS expenses(
     id INTEGER PRIMARY KEY AUTOINCREMENT, expense_no TEXT UNIQUE, title TEXT NOT NULL, category TEXT, amount REAL NOT NULL,
-    payment_method TEXT DEFAULT 'Cash', paid_by TEXT, note TEXT, expense_date TEXT NOT NULL, user_id INTEGER, created_at TEXT NOT NULL
+    payment_method TEXT DEFAULT 'Cash', paid_by TEXT, receipt_path TEXT, note TEXT, expense_date TEXT NOT NULL, user_id INTEGER, created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS recurring_expenses(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL,
+    payment_method TEXT DEFAULT 'Cash', frequency TEXT DEFAULT 'MONTHLY', day_of_month INTEGER DEFAULT 1,
+    next_run_date TEXT NOT NULL, status TEXT DEFAULT 'active', created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS budgets(
+    category TEXT NOT NULL, period_month TEXT NOT NULL, amount REAL NOT NULL, PRIMARY KEY(category, period_month)
   );
 
   CREATE TABLE IF NOT EXISTS cash_registers(
@@ -157,8 +225,35 @@ function initDb() {
     FOREIGN KEY(register_id) REFERENCES cash_registers(id)
   );
 
+  CREATE TABLE IF NOT EXISTS bank_accounts(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, account_number TEXT, bank_name TEXT,
+    opening_balance REAL DEFAULT 0, status TEXT DEFAULT 'active', created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS bank_transactions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, direction TEXT NOT NULL, category TEXT NOT NULL,
+    amount REAL NOT NULL, reference TEXT, note TEXT, user_id INTEGER, created_at TEXT NOT NULL,
+    FOREIGN KEY(account_id) REFERENCES bank_accounts(id)
+  );
+  CREATE TABLE IF NOT EXISTS petty_cash(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, direction TEXT NOT NULL, amount REAL NOT NULL,
+    reference TEXT, note TEXT, user_id INTEGER, created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS payment_methods(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, status TEXT DEFAULT 'active', sort_order INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS role_permissions(
+    role TEXT NOT NULL, permission TEXT NOT NULL, allowed INTEGER DEFAULT 1, PRIMARY KEY(role, permission)
+  );
+
+  CREATE TABLE IF NOT EXISTS notifications(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, title TEXT NOT NULL, body TEXT,
+    entity TEXT, entity_id INTEGER, severity TEXT DEFAULT 'info', is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS stock_movements(
-    id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL, location_id INTEGER, type TEXT NOT NULL, quantity REAL NOT NULL,
     previous_stock REAL, new_stock REAL, unit_cost REAL DEFAULT 0, reference TEXT, reason TEXT, user_id INTEGER, created_at TEXT NOT NULL,
     FOREIGN KEY(product_id) REFERENCES products(id)
   );
@@ -171,7 +266,10 @@ function initDb() {
 
   migrate();
   seed();
-  db.prepare("INSERT OR IGNORE INTO schema_meta(version) VALUES(3)").run();
+  backfillLocationStock();
+  generateNotifications();
+  runDueRecurringExpenses();
+  db.prepare("INSERT OR IGNORE INTO schema_meta(version) VALUES(4)").run();
 }
 
 // Additive column migrations for installs created by earlier versions of this app.
@@ -184,6 +282,22 @@ function migrate() {
   addColumn("products", "retail_price REAL DEFAULT 0");
   addColumn("products", "wholesale_price REAL DEFAULT 0");
   addColumn("products", "image_path TEXT DEFAULT ''");
+  addColumn("sales", "tax REAL NOT NULL DEFAULT 0");
+  addColumn("sales", "location_id INTEGER");
+  addColumn("purchases", "discount REAL NOT NULL DEFAULT 0");
+  addColumn("purchases", "tax REAL NOT NULL DEFAULT 0");
+  addColumn("purchases", "location_id INTEGER");
+  addColumn("purchases", "po_id INTEGER");
+  addColumn("customers", "cnic TEXT");
+  addColumn("customers", "group_id INTEGER");
+  addColumn("suppliers", "ntn TEXT");
+  addColumn("suppliers", "payment_term_days INTEGER DEFAULT 0");
+  addColumn("suppliers", "products_supplied TEXT");
+  addColumn("sales_returns", "return_type TEXT DEFAULT 'Refund'");
+  addColumn("sales_return_items", "batch_ref TEXT");
+  addColumn("purchase_returns", "credit_note_no TEXT");
+  addColumn("purchase_return_items", "batch_ref TEXT");
+  addColumn("stock_movements", "location_id INTEGER");
   // Older builds used a single `sale_price` column — migrate it into retail_price once.
   try {
     const cols = db.prepare("PRAGMA table_info(products)").all().map(c => c.name);
@@ -216,22 +330,48 @@ function nextNo(prefix) {
   return `${prefix}-${dateKey}-${String(seq).padStart(4, "0")}`;
 }
 
-// Applies a stock movement and updates the product's running stock / weighted average cost.
-function applyStock(productId, quantitySigned, unitCost, type, reference, reason, userId) {
+function defaultLocationId() {
+  const row = db.prepare("SELECT id FROM locations WHERE status='active' ORDER BY id LIMIT 1").get();
+  return row ? row.id : null;
+}
+
+// Applies a stock movement at a specific location and keeps the per-product
+// cached TOTAL (products.stock / avg_cost) in sync. Weighted average cost
+// (Section 31) is recalculated from the company-wide total, not the
+// per-location quantity, since cost basis is shared across locations.
+function applyStock(productId, locationId, quantitySigned, unitCost, type, reference, reason, userId) {
   const p = db.prepare("SELECT * FROM products WHERE id=?").get(productId);
   if (!p) throw new Error("Product not found");
-  const previous = p.stock || 0;
+  const loc = locationId || defaultLocationId();
+
+  const locRow = db.prepare("SELECT stock FROM product_location_stock WHERE product_id=? AND location_id=?").get(productId, loc);
+  const previousAtLocation = locRow ? locRow.stock : 0;
+  const nextAtLocation = previousAtLocation + quantitySigned;
+  if (nextAtLocation < 0) throw new Error(`Insufficient stock for ${p.name} at this location: have ${previousAtLocation}, need ${-quantitySigned}`);
+
+  const previousTotal = p.stock || 0;
   let newAvg = p.avg_cost || 0;
   if (quantitySigned > 0 && unitCost > 0) {
-    // Weighted average cost recalculation (Section 31) — only on stock increases with a known cost.
-    newAvg = (previous * (p.avg_cost || 0) + quantitySigned * unitCost) / (previous + quantitySigned || 1);
+    newAvg = (previousTotal * (p.avg_cost || 0) + quantitySigned * unitCost) / (previousTotal + quantitySigned || 1);
   }
-  const next = previous + quantitySigned;
-  if (next < 0) throw new Error(`Insufficient stock for ${p.name}: have ${previous}, need ${-quantitySigned}`);
-  db.prepare("UPDATE products SET stock=?, avg_cost=? WHERE id=?").run(next, newAvg, productId);
-  db.prepare(`INSERT INTO stock_movements(product_id,type,quantity,previous_stock,new_stock,unit_cost,reference,reason,user_id,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(productId, type, quantitySigned, previous, next, unitCost || 0, reference || "", reason || "", userId ?? null, now());
-  return next;
+  const newTotal = previousTotal + quantitySigned;
+  if (newTotal < -0.0001) throw new Error(`Insufficient stock for ${p.name}: have ${previousTotal}, need ${-quantitySigned}`);
+
+  db.prepare(`INSERT INTO product_location_stock(product_id,location_id,stock) VALUES(?,?,?)
+    ON CONFLICT(product_id,location_id) DO UPDATE SET stock=excluded.stock`).run(productId, loc, nextAtLocation);
+  db.prepare("UPDATE products SET stock=?, avg_cost=? WHERE id=?").run(newTotal, newAvg, productId);
+  db.prepare(`INSERT INTO stock_movements(product_id,location_id,type,quantity,previous_stock,new_stock,unit_cost,reference,reason,user_id,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(productId, loc, type, quantitySigned, previousTotal, newTotal, unitCost || 0, reference || "", reason || "", userId ?? null, now());
+  return newTotal;
+}
+
+function backfillLocationStock() {
+  const loc = defaultLocationId();
+  if (!loc) return;
+  const already = db.prepare("SELECT COUNT(*) c FROM product_location_stock").get().c;
+  if (already > 0) return;
+  const ins = db.prepare("INSERT OR IGNORE INTO product_location_stock(product_id,location_id,stock) VALUES(?,?,?)");
+  db.prepare("SELECT id,stock FROM products").all().forEach((p) => ins.run(p.id, loc, p.stock || 0));
 }
 
 // Cash register: only payment_method==='Cash' portions ever touch the physical drawer (Section 9/69).
@@ -251,6 +391,68 @@ function registerTotals(registerId) {
   return { cashIn: inSum, cashOut: outSum };
 }
 
+// FIFO aging: opening balance + each debit entry (credit sale/purchase) is an
+// "open" item; each credit entry (payment/return) is applied against the
+// oldest open items first. Whatever remains open is bucketed by age.
+function computeAging(rows, openingBalance, openingDate) {
+  const open = [];
+  if (openingBalance > 0) open.push({ remaining: openingBalance, date: openingDate });
+  for (const r of rows) {
+    if (r.direction > 0) {
+      open.push({ remaining: r.amount, date: r.created_at });
+    } else {
+      let toApply = r.amount;
+      for (const e of open) {
+        if (toApply <= 0) break;
+        const take = Math.min(e.remaining, toApply);
+        e.remaining -= take;
+        toApply -= take;
+      }
+    }
+  }
+  const nowMs = Date.now();
+  const buckets = { current: 0, d31_60: 0, d61_90: 0, over90: 0 };
+  for (const e of open) {
+    if (e.remaining <= 0.009) continue;
+    const days = (nowMs - new Date(e.date).getTime()) / 86400000;
+    if (days <= 30) buckets.current += e.remaining;
+    else if (days <= 60) buckets.d31_60 += e.remaining;
+    else if (days <= 90) buckets.d61_90 += e.remaining;
+    else buckets.over90 += e.remaining;
+  }
+  return buckets;
+}
+
+function generateNotifications() {
+  const push = (type, title, body, entity, entityId, severity) => {
+    const exists = db.prepare("SELECT id FROM notifications WHERE type=? AND entity=? AND entity_id=? AND is_read=0").get(type, entity, entityId);
+    if (exists) return;
+    db.prepare("INSERT INTO notifications(type,title,body,entity,entity_id,severity,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(type, title, body, entity, entityId, severity, now());
+  };
+  db.prepare("SELECT id,name,stock,min_stock,package_unit FROM products WHERE status='active' AND stock<=min_stock").all()
+    .forEach((p) => push("LOW_STOCK", `Low stock: ${p.name}`, `${p.stock} ${p.package_unit} remaining (minimum ${p.min_stock})`, "product", p.id, "warning"));
+  db.prepare("SELECT id,COALESCE(shop_name,name) name FROM customers WHERE status='active'").all().forEach((c) => {
+    const agingRows = db.prepare("SELECT direction,amount,created_at FROM customer_transactions WHERE customer_id=? ORDER BY created_at ASC").all(c.id);
+    const customer = db.prepare("SELECT opening_balance,created_at FROM customers WHERE id=?").get(c.id);
+    const aging = computeAging(agingRows, customer.opening_balance, customer.created_at);
+    if (aging.over90 > 0) push("RECEIVABLE_OVERDUE", `Overdue balance: ${c.name}`, `Rs. ${Math.round(aging.over90)} outstanding for over 90 days`, "customer", c.id, "critical");
+  });
+}
+
+function runDueRecurringExpenses() {
+  const due = db.prepare("SELECT * FROM recurring_expenses WHERE status='active' AND next_run_date<=?").all(today());
+  for (const r of due) {
+    const no = nextNo("EXP");
+    db.prepare("INSERT INTO expenses(expense_no,title,category,amount,payment_method,paid_by,note,expense_date,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+      .run(no, r.title, r.category, r.amount, r.payment_method, "Recurring", "Auto-generated recurring expense", today(), now());
+    if (r.payment_method === "Cash") cashTx("OUT", "EXPENSE", r.amount, no, r.title, null);
+    const next = new Date(r.next_run_date);
+    if (r.frequency === "WEEKLY") next.setDate(next.getDate() + 7); else next.setMonth(next.getMonth() + 1);
+    db.prepare("UPDATE recurring_expenses SET next_run_date=? WHERE id=?").run(next.toISOString().slice(0, 10), r.id);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Seed data — exact business identity and product catalog supplied by the owner.
 // ---------------------------------------------------------------------------
@@ -262,7 +464,7 @@ function seed() {
       ["business_title", "Haji Abdul Manan & Abdul Hanan — Atta Dealer Pishin"],
       ["business_type", "Atta Dealer / Fertilizer / Grains"],
       ["address", "Pishin, Balochistan, Pakistan"],
-      ["phone", ""],
+      ["phone", ""], ["cnic", ""], ["ntn", ""],
       ["currency", "PKR"],
       ["primary_color", "#1f6b2a"],
       ["logo_path", ""],
@@ -273,8 +475,26 @@ function seed() {
       ["print_customer_copy", "1"],
       ["print_office_copy", "1"],
       ["auto_cut", "1"],
+      ["sales_tax_enabled", "0"], ["sales_tax_rate", "0"],
+      ["purchase_tax_enabled", "0"], ["purchase_tax_rate", "0"],
+      ["discount_sales_enabled", "1"], ["discount_sales_max_pct", "10"],
+      ["discount_purchase_enabled", "1"], ["discount_purchase_max_pct", "10"],
       ["setup_complete", "0"]
     ].forEach(x => s.run(...x));
+  }
+  if (db.prepare("SELECT COUNT(*) c FROM locations").get().c === 0) {
+    db.prepare("INSERT INTO locations(name,type,created_at) VALUES(?,?,?)").run("Main Store", "Store", now());
+  }
+  if (db.prepare("SELECT COUNT(*) c FROM payment_methods").get().c === 0) {
+    const pm = db.prepare("INSERT INTO payment_methods(name,sort_order) VALUES(?,?)");
+    ["Cash", "Bank Transfer", "JazzCash", "Easypaisa", "Cheque", "Credit", "Partial"].forEach((n, i) => pm.run(n, i));
+  }
+  if (db.prepare("SELECT COUNT(*) c FROM role_permissions").get().c === 0) {
+    const ins = db.prepare("INSERT OR IGNORE INTO role_permissions(role,permission,allowed) VALUES(?,?,?)");
+    for (const role of Object.keys(DEFAULT_ROLE_PERMISSIONS)) {
+      const allowedSet = new Set(DEFAULT_ROLE_PERMISSIONS[role]);
+      for (const perm of PERMISSIONS) ins.run(role, perm, allowedSet.has(perm) ? 1 : 0);
+    }
   }
   if (db.prepare("SELECT COUNT(*) c FROM users").get().c === 0) {
     db.prepare("INSERT INTO users(username,display_name,role,password_hash,created_at) VALUES(?,?,?,?,?)")
@@ -359,6 +579,29 @@ function registerIpc() {
   });
   ipcMain.handle("images:remove", (_, p) => { if (p && p.startsWith(dataDir) && fs.existsSync(p)) fs.unlinkSync(p); return true; });
 
+  // ---- Locations ----------------------------------------------------------
+  ipcMain.handle("locations:list", () => db.prepare("SELECT * FROM locations ORDER BY name").all());
+  ipcMain.handle("locations:save", (_, x) => {
+    if (x.id) db.prepare("UPDATE locations SET name=?,type=?,status=? WHERE id=?").run(x.name, x.type || "Store", x.status || "active", x.id);
+    else db.prepare("INSERT INTO locations(name,type,created_at) VALUES(?,?,?)").run(x.name, x.type || "Store", now());
+    return db.prepare("SELECT * FROM locations ORDER BY name").all();
+  });
+  ipcMain.handle("stock:byLocation", (_, productId) => db.prepare(`
+    SELECT l.id location_id, l.name location_name, COALESCE(pls.stock,0) stock
+    FROM locations l LEFT JOIN product_location_stock pls ON pls.location_id=l.id AND pls.product_id=?
+    WHERE l.status='active' ORDER BY l.name`).all(productId));
+  ipcMain.handle("stock:transfer", (_, x) => {
+    const tx = db.transaction(v => {
+      if (v.from_location_id === v.to_location_id) throw new Error("Source and destination must differ");
+      const no = nextNo("TRF");
+      applyStock(v.product_id, v.from_location_id, -Number(v.quantity), 0, "TRANSFER", no, v.reason || "Stock transfer out", v.actorId);
+      applyStock(v.product_id, v.to_location_id, Number(v.quantity), 0, "TRANSFER", no, v.reason || "Stock transfer in", v.actorId);
+      audit(v.actorId, "STOCK_TRANSFER", "product", v.product_id, { from: v.from_location_id, to: v.to_location_id, quantity: v.quantity, reference: no });
+      return { reference: no };
+    });
+    return tx(x);
+  });
+
   ipcMain.handle("categories:list", () => db.prepare("SELECT * FROM categories ORDER BY name").all());
   ipcMain.handle("categories:save", (_, x) => {
     if (x.id) db.prepare("UPDATE categories SET name=?,name_urdu=?,image_path=?,status=? WHERE id=?").run(x.name, x.name_urdu || "", x.image_path || "", x.status || "active", x.id);
@@ -381,7 +624,7 @@ function registerIpc() {
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(x.category_id, x.name, x.name_urdu || "", x.brand || "", x.package_size || 0, x.package_unit || "", x.sku || null, x.barcode || null,
           x.purchase_price || 0, x.retail_price || 0, x.wholesale_price || 0, x.min_stock || 0, x.purchase_price || 0, x.image_path || "", now());
-      if (x.stock) applyStock(r.lastInsertRowid, Number(x.stock), Number(x.purchase_price || 0), "OPENING_STOCK", "OPENING", "Product creation", x.actorId);
+      if (x.stock) applyStock(r.lastInsertRowid, x.location_id, Number(x.stock), Number(x.purchase_price || 0), "OPENING_STOCK", "OPENING", "Product creation", x.actorId);
       audit(x.actorId, "CREATE", "product", r.lastInsertRowid, { name: x.name });
     }
     return true;
@@ -389,34 +632,48 @@ function registerIpc() {
   ipcMain.handle("products:adjust", (_, x) => {
     const qty = Number(x.quantity);
     const type = qty >= 0 ? "STOCK_ADJUSTMENT_IN" : "STOCK_ADJUSTMENT_OUT";
-    applyStock(x.product_id, qty, Number(x.unit_cost || 0), type, "MANUAL", x.reason || "Manual adjustment", x.actorId);
+    applyStock(x.product_id, x.location_id, qty, Number(x.unit_cost || 0), type, "MANUAL", x.reason || "Manual adjustment", x.actorId);
     audit(x.actorId, "STOCK_ADJUSTED", "product", x.product_id, { quantity: qty, reason: x.reason });
     return true;
   });
 
+  // ---- Customer groups ------------------------------------------------------
+  ipcMain.handle("customerGroups:list", () => db.prepare("SELECT * FROM customer_groups ORDER BY name").all());
+  ipcMain.handle("customerGroups:save", (_, x) => { db.prepare("INSERT INTO customer_groups(name,created_at) VALUES(?,?)").run(x.name, now()); return db.prepare("SELECT * FROM customer_groups ORDER BY name").all(); });
+
   ipcMain.handle("customers:list", () => db.prepare(`
-    SELECT c.*, COALESCE(c.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance
-    FROM customers c WHERE c.status='active' ORDER BY COALESCE(c.shop_name,c.name)`).all());
+    SELECT c.*, g.name group_name, COALESCE(c.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance
+    FROM customers c LEFT JOIN customer_groups g ON g.id=c.group_id WHERE c.status='active' ORDER BY COALESCE(c.shop_name,c.name)`).all());
   ipcMain.handle("customers:save", (_, x) => {
-    if (x.id) db.prepare("UPDATE customers SET shop_name=?,name=?,phone=?,whatsapp=?,address=?,city=?,area=?,customer_type=?,credit_limit=?,notes=? WHERE id=?")
-      .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.credit_limit || 0, x.notes || "", x.id);
-    else db.prepare("INSERT INTO customers(shop_name,name,phone,whatsapp,address,city,area,customer_type,credit_limit,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.credit_limit || 0, x.opening_balance || 0, x.notes || "", now());
+    if (x.id) db.prepare("UPDATE customers SET shop_name=?,name=?,phone=?,whatsapp=?,address=?,city=?,area=?,customer_type=?,cnic=?,group_id=?,credit_limit=?,notes=? WHERE id=?")
+      .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.cnic || "", x.group_id || null, x.credit_limit || 0, x.notes || "", x.id);
+    else db.prepare("INSERT INTO customers(shop_name,name,phone,whatsapp,address,city,area,customer_type,cnic,group_id,credit_limit,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .run(x.shop_name || "", x.name, x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.area || "", x.customer_type || "Retail", x.cnic || "", x.group_id || null, x.credit_limit || 0, x.opening_balance || 0, x.notes || "", now());
     return true;
   });
   ipcMain.handle("customers:ledger", (_, customerId) => db.prepare("SELECT * FROM customer_transactions WHERE customer_id=? ORDER BY id DESC").all(customerId));
+  ipcMain.handle("customers:aging", (_, customerId) => {
+    const c = db.prepare("SELECT opening_balance,created_at FROM customers WHERE id=?").get(customerId);
+    const rows = db.prepare("SELECT direction,amount,created_at FROM customer_transactions WHERE customer_id=? ORDER BY created_at ASC").all(customerId);
+    return computeAging(rows, c.opening_balance, c.created_at);
+  });
 
   ipcMain.handle("suppliers:list", () => db.prepare(`
     SELECT s.*, COALESCE(s.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance
     FROM suppliers s WHERE s.status='active' ORDER BY s.name`).all());
   ipcMain.handle("suppliers:save", (_, x) => {
-    if (x.id) db.prepare("UPDATE suppliers SET name=?,contact_person=?,phone=?,whatsapp=?,address=?,city=?,category=?,notes=? WHERE id=?")
-      .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.notes || "", x.id);
-    else db.prepare("INSERT INTO suppliers(name,contact_person,phone,whatsapp,address,city,category,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
-      .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.opening_balance || 0, x.notes || "", now());
+    if (x.id) db.prepare("UPDATE suppliers SET name=?,contact_person=?,phone=?,whatsapp=?,address=?,city=?,category=?,ntn=?,payment_term_days=?,products_supplied=?,notes=? WHERE id=?")
+      .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.ntn || "", x.payment_term_days || 0, x.products_supplied || "", x.notes || "", x.id);
+    else db.prepare("INSERT INTO suppliers(name,contact_person,phone,whatsapp,address,city,category,ntn,payment_term_days,products_supplied,opening_balance,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .run(x.name, x.contact_person || "", x.phone || "", x.whatsapp || "", x.address || "", x.city || "", x.category || "", x.ntn || "", x.payment_term_days || 0, x.products_supplied || "", x.opening_balance || 0, x.notes || "", now());
     return true;
   });
   ipcMain.handle("suppliers:ledger", (_, supplierId) => db.prepare("SELECT * FROM supplier_transactions WHERE supplier_id=? ORDER BY id DESC").all(supplierId));
+  ipcMain.handle("suppliers:aging", (_, supplierId) => {
+    const s = db.prepare("SELECT opening_balance,created_at FROM suppliers WHERE id=?").get(supplierId);
+    const rows = db.prepare("SELECT direction,amount,created_at FROM supplier_transactions WHERE supplier_id=? ORDER BY created_at ASC").all(supplierId);
+    return computeAging(rows, s.opening_balance, s.created_at);
+  });
 
   // ---- Sales (POS) -------------------------------------------------------
   ipcMain.handle("sales:list", () => db.prepare(`SELECT s.*,COALESCE(c.shop_name,c.name) customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id ORDER BY s.id DESC LIMIT 200`).all());
@@ -424,44 +681,44 @@ function registerIpc() {
     sale: db.prepare("SELECT s.*,COALESCE(c.shop_name,c.name) customer_name,c.phone customer_phone FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.id=?").get(id),
     items: db.prepare("SELECT si.*,p.name product_name,p.name_urdu FROM sale_items si JOIN products p ON p.id=si.product_id WHERE si.sale_id=?").all(id)
   }));
-  ipcMain.handle("sales:create", (_, x) => {
-    const tx = db.transaction(v => {
-      if (!v.items?.length) throw new Error("Cart is empty");
-      let subtotal = 0;
-      for (const i of v.items) subtotal += Number(i.quantity) * Number(i.rate);
-      const discount = Number(v.discount || 0);
-      const total = Math.max(0, subtotal - discount);
-      const paid = Math.min(Number(v.paid || 0), total);
-      if (paid < 0) throw new Error("Paid amount cannot be negative");
-      const no = nextNo("INV");
-      const sale = db.prepare(`INSERT INTO sales(invoice_no,customer_id,mode,subtotal,discount,total,paid,balance,payment_method,cashier_id,sale_date,created_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(no, v.customer_id || null, v.mode || "Retail", subtotal, discount, total, paid, total - paid, v.payment_method || "Cash", v.actorId || null, today(), now());
-      const item = db.prepare("INSERT INTO sale_items(sale_id,product_id,quantity,unit,rate,amount,cost) VALUES(?,?,?,?,?,?,?)");
-      for (const i of v.items) {
-        const p = db.prepare("SELECT * FROM products WHERE id=?").get(i.product_id);
-        if (!p) throw new Error("Product not found");
-        item.run(sale.lastInsertRowid, i.product_id, i.quantity, p.package_unit, i.rate, i.quantity * i.rate, p.avg_cost || p.purchase_price);
-        applyStock(i.product_id, -Number(i.quantity), 0, "SALE", no, "POS sale", v.actorId);
-      }
-      const balance = total - paid;
-      if (v.customer_id && balance > 0) {
-        db.prepare("INSERT INTO customer_transactions(customer_id,type,direction,amount,reference,note,payment_method,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
-          .run(v.customer_id, "SALE_CREDIT", 1, balance, no, `${v.mode || "Retail"} sale — credit`, v.payment_method, v.actorId || null, now());
-      }
-      if (paid > 0 && (v.payment_method === "Cash" || v.payment_method === "Partial")) cashTx("IN", "SALE", paid, no, `${v.mode || "Retail"} sale`, v.actorId);
-      audit(v.actorId, "CREATE", "sale", sale.lastInsertRowid, { invoice_no: no, total, paid, balance });
-      return { id: sale.lastInsertRowid, invoice_no: no, subtotal, discount, total, paid, balance, sale_date: today() };
-    });
-    return tx(x);
+  const createSaleTx = db.transaction((v) => {
+    if (!v.items?.length) throw new Error("Cart is empty");
+    let subtotal = 0;
+    for (const i of v.items) subtotal += Number(i.quantity) * Number(i.rate);
+    const discount = Number(v.discount || 0);
+    const tax = Number(v.tax || 0);
+    const total = Math.max(0, subtotal - discount + tax);
+    const paid = Math.min(Number(v.paid || 0), total);
+    if (paid < 0) throw new Error("Paid amount cannot be negative");
+    const loc = v.location_id || defaultLocationId();
+    const no = nextNo("INV");
+    const sale = db.prepare(`INSERT INTO sales(invoice_no,customer_id,mode,subtotal,discount,tax,total,paid,balance,location_id,payment_method,cashier_id,sale_date,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(no, v.customer_id || null, v.mode || "Retail", subtotal, discount, tax, total, paid, total - paid, loc, v.payment_method || "Cash", v.actorId || null, today(), now());
+    const item = db.prepare("INSERT INTO sale_items(sale_id,product_id,quantity,unit,rate,amount,cost) VALUES(?,?,?,?,?,?,?)");
+    for (const i of v.items) {
+      const p = db.prepare("SELECT * FROM products WHERE id=?").get(i.product_id);
+      if (!p) throw new Error("Product not found");
+      item.run(sale.lastInsertRowid, i.product_id, i.quantity, p.package_unit, i.rate, i.quantity * i.rate, p.avg_cost || p.purchase_price);
+      applyStock(i.product_id, loc, -Number(i.quantity), 0, "SALE", no, "POS sale", v.actorId);
+    }
+    const balance = total - paid;
+    if (v.customer_id && balance > 0) {
+      db.prepare("INSERT INTO customer_transactions(customer_id,type,direction,amount,reference,note,payment_method,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(v.customer_id, "SALE_CREDIT", 1, balance, no, `${v.mode || "Retail"} sale — credit`, v.payment_method, v.actorId || null, now());
+    }
+    if (paid > 0 && (v.payment_method === "Cash" || v.payment_method === "Partial")) cashTx("IN", "SALE", paid, no, `${v.mode || "Retail"} sale`, v.actorId);
+    audit(v.actorId, "CREATE", "sale", sale.lastInsertRowid, { invoice_no: no, total, paid, balance });
+    return { id: sale.lastInsertRowid, invoice_no: no, subtotal, discount, tax, total, paid, balance, sale_date: today() };
   });
+  ipcMain.handle("sales:create", (_, x) => createSaleTx(x));
   ipcMain.handle("sales:void", (_, x) => {
     const tx = db.transaction(v => {
       const sale = db.prepare("SELECT * FROM sales WHERE id=?").get(v.id);
       if (!sale) throw new Error("Sale not found");
       if (sale.status === "VOID") throw new Error("Sale already voided");
       const items = db.prepare("SELECT * FROM sale_items WHERE sale_id=?").all(v.id);
-      for (const i of items) applyStock(i.product_id, Number(i.quantity), 0, "SALES_RETURN", sale.invoice_no, "Sale voided", v.actorId);
+      for (const i of items) applyStock(i.product_id, sale.location_id, Number(i.quantity), 0, "SALES_RETURN", sale.invoice_no, "Sale voided", v.actorId);
       if (sale.customer_id && sale.balance > 0)
         db.prepare("INSERT INTO customer_transactions(customer_id,type,direction,amount,reference,note,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
           .run(sale.customer_id, "VOID_ADJUSTMENT", -1, sale.balance, sale.invoice_no, "Sale voided", v.actorId || null, now());
@@ -472,16 +729,16 @@ function registerIpc() {
     return tx(x);
   });
 
-  // ---- Sales Returns -------------------------------------------------------
+  // ---- Sales Returns (Refund or Exchange; Section 22 — instant post) --------
   ipcMain.handle("salesReturns:create", (_, x) => {
     const tx = db.transaction(v => {
       const sale = db.prepare("SELECT * FROM sales WHERE id=?").get(v.sale_id);
       if (!sale) throw new Error("Original sale not found");
       let total = 0;
-      const rItem = db.prepare("INSERT INTO sales_return_items(return_id,sale_item_id,product_id,quantity,rate,amount) VALUES(?,?,?,?,?,?)");
+      const rItem = db.prepare("INSERT INTO sales_return_items(return_id,sale_item_id,product_id,quantity,rate,amount,batch_ref) VALUES(?,?,?,?,?,?,?)");
       const no = nextNo("SR");
-      const ret = db.prepare("INSERT INTO sales_returns(return_no,sale_id,customer_id,total,reason,refund_cash,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
-        .run(no, v.sale_id, sale.customer_id, 0, v.reason || "", 0, v.actorId || null, now());
+      const ret = db.prepare("INSERT INTO sales_returns(return_no,sale_id,customer_id,return_type,total,reason,refund_cash,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(no, v.sale_id, sale.customer_id, v.returnType || "Refund", 0, v.reason || "", 0, v.actorId || null, now());
       for (const i of v.items) {
         const si = db.prepare("SELECT * FROM sale_items WHERE id=?").get(i.sale_item_id);
         if (!si) throw new Error("Original sale item not found");
@@ -490,11 +747,10 @@ function registerIpc() {
         db.prepare("UPDATE sale_items SET returned_quantity = returned_quantity + ? WHERE id=?").run(i.quantity, si.id);
         const amount = Number(i.quantity) * si.rate;
         total += amount;
-        rItem.run(ret.lastInsertRowid, si.id, si.product_id, i.quantity, si.rate, amount);
-        applyStock(si.product_id, Number(i.quantity), 0, "SALES_RETURN", no, v.reason || "Sales return", v.actorId);
+        rItem.run(ret.lastInsertRowid, si.id, si.product_id, i.quantity, si.rate, amount, i.batch_ref || null);
+        applyStock(si.product_id, sale.location_id, Number(i.quantity), 0, "SALES_RETURN", no, v.reason || "Sales return", v.actorId);
       }
       db.prepare("UPDATE sales_returns SET total=? WHERE id=?").run(total, ret.lastInsertRowid);
-      const refundCash = Math.min(total, v.refundCash ? total : 0);
       if (sale.customer_id) {
         const outstanding = db.prepare("SELECT COALESCE(opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=?),0) v FROM customers WHERE id=?").get(sale.customer_id, sale.customer_id).v;
         const reduceReceivable = Math.max(0, Math.min(total, outstanding));
@@ -503,7 +759,7 @@ function registerIpc() {
             .run(sale.customer_id, "SALES_RETURN", -1, reduceReceivable, no, v.reason || "Sales return", v.actorId || null, now());
       }
       if (v.refundCash) { cashTx("OUT", "REFUND", total, no, "Sales return refund", v.actorId); db.prepare("UPDATE sales_returns SET refund_cash=? WHERE id=?").run(total, ret.lastInsertRowid); }
-      audit(v.actorId, "CREATE", "sales_return", ret.lastInsertRowid, { return_no: no, total });
+      audit(v.actorId, "CREATE", "sales_return", ret.lastInsertRowid, { return_no: no, total, returnType: v.returnType });
       return { id: ret.lastInsertRowid, return_no: no, total };
     });
     return tx(x);
@@ -515,43 +771,103 @@ function registerIpc() {
     purchase: db.prepare("SELECT p.*,s.name supplier_name FROM purchases p LEFT JOIN suppliers s ON s.id=p.supplier_id WHERE p.id=?").get(id),
     items: db.prepare("SELECT pi.*,p.name product_name FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=?").all(id)
   }));
-  ipcMain.handle("purchases:create", (_, x) => {
+  const createPurchaseTx = db.transaction((v) => {
+    if (!v.items?.length) throw new Error("No items in purchase");
+    let subtotal = 0;
+    for (const i of v.items) subtotal += Number(i.quantity) * Number(i.rate);
+    const discount = Number(v.discount || 0);
+    const tax = Number(v.tax || 0);
+    const grandTotal = Math.max(0, subtotal - discount + tax);
+    const paid = Math.min(Number(v.paid || 0), grandTotal);
+    const loc = v.location_id || defaultLocationId();
+    const no = nextNo("PUR");
+    const purchase = db.prepare(`INSERT INTO purchases(invoice_no,supplier_id,po_id,location_id,subtotal,discount,tax,total,paid,balance,payment_method,notes,purchase_date,created_at,user_id)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(no, v.supplier_id || null, v.po_id || null, loc, subtotal, discount, tax, grandTotal, paid, grandTotal - paid, v.payment_method || "Cash", v.notes || "", today(), now(), v.actorId || null);
+    const item = db.prepare("INSERT INTO purchase_items(purchase_id,product_id,quantity,rate,amount) VALUES(?,?,?,?,?)");
+    for (const i of v.items) {
+      const qty = Number(i.quantity), rate = Number(i.rate);
+      item.run(purchase.lastInsertRowid, i.product_id, qty, rate, qty * rate);
+      applyStock(i.product_id, loc, qty, rate, "PURCHASE", no, "Purchase", v.actorId);
+      db.prepare("UPDATE products SET purchase_price=? WHERE id=?").run(rate, i.product_id); // latest cost shown on product card
+    }
+    const balance = grandTotal - paid;
+    if (v.supplier_id && balance > 0)
+      db.prepare("INSERT INTO supplier_transactions(supplier_id,type,direction,amount,reference,note,payment_method,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(v.supplier_id, "PURCHASE_CREDIT", 1, balance, no, "Credit purchase", v.payment_method, v.actorId || null, now());
+    if (paid > 0 && (v.payment_method === "Cash" || v.payment_method === "Partial")) cashTx("OUT", "PURCHASE", paid, no, "Purchase", v.actorId);
+    audit(v.actorId, "CREATE", "purchase", purchase.lastInsertRowid, { invoice_no: no, total: grandTotal, paid, balance });
+    return { id: purchase.lastInsertRowid, invoice_no: no, total: grandTotal, paid, balance };
+  });
+  ipcMain.handle("purchases:create", (_, x) => createPurchaseTx(x));
+
+  // ---- Purchase Orders (draft -> sent -> received -> converts to a Purchase) --
+  ipcMain.handle("po:list", () => db.prepare(`SELECT po.*,s.name supplier_name FROM po_orders po LEFT JOIN suppliers s ON s.id=po.supplier_id ORDER BY po.id DESC LIMIT 200`).all());
+  ipcMain.handle("po:get", (_, id) => ({
+    po: db.prepare("SELECT po.*,s.name supplier_name FROM po_orders po LEFT JOIN suppliers s ON s.id=po.supplier_id WHERE po.id=?").get(id),
+    items: db.prepare("SELECT poi.*,p.name product_name FROM po_items poi JOIN products p ON p.id=poi.product_id WHERE poi.po_id=?").all(id)
+  }));
+  ipcMain.handle("po:create", (_, x) => {
     const tx = db.transaction(v => {
-      if (!v.items?.length) throw new Error("No items in purchase");
-      let subtotal = 0;
-      for (const i of v.items) subtotal += Number(i.quantity) * Number(i.rate);
-      const paid = Math.min(Number(v.paid || 0), subtotal);
-      const no = nextNo("PUR");
-      const purchase = db.prepare("INSERT INTO purchases(invoice_no,supplier_id,subtotal,total,paid,balance,payment_method,notes,purchase_date,created_at,user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-        .run(no, v.supplier_id || null, subtotal, subtotal, paid, subtotal - paid, v.payment_method || "Cash", v.notes || "", today(), now(), v.actorId || null);
-      const item = db.prepare("INSERT INTO purchase_items(purchase_id,product_id,quantity,rate,amount) VALUES(?,?,?,?,?)");
-      for (const i of v.items) {
-        const qty = Number(i.quantity), rate = Number(i.rate);
-        item.run(purchase.lastInsertRowid, i.product_id, qty, rate, qty * rate);
-        applyStock(i.product_id, qty, rate, "PURCHASE", no, "Purchase", v.actorId);
-        db.prepare("UPDATE products SET purchase_price=? WHERE id=?").run(rate, i.product_id); // latest cost shown on product card
+      const no = nextNo("PO");
+      const po = db.prepare("INSERT INTO po_orders(po_no,supplier_id,location_id,status,expected_date,notes,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
+        .run(no, v.supplier_id || null, v.location_id || defaultLocationId(), "DRAFT", v.expected_date || null, v.notes || "", v.actorId || null, now());
+      const item = db.prepare("INSERT INTO po_items(po_id,product_id,quantity,rate) VALUES(?,?,?,?)");
+      for (const i of v.items) item.run(po.lastInsertRowid, i.product_id, i.quantity, i.rate);
+      audit(v.actorId, "CREATE", "po_order", po.lastInsertRowid, { po_no: no });
+      return { id: po.lastInsertRowid, po_no: no };
+    });
+    return tx(x);
+  });
+  ipcMain.handle("po:updateStatus", (_, x) => {
+    const po = db.prepare("SELECT * FROM po_orders WHERE id=?").get(x.id);
+    if (!po) throw new Error("Purchase order not found");
+    if (!["DRAFT", "SENT", "CANCELLED"].includes(x.status)) throw new Error("Invalid status transition");
+    db.prepare("UPDATE po_orders SET status=? WHERE id=?").run(x.status, x.id);
+    audit(x.actorId, "PO_STATUS_CHANGED", "po_order", x.id, { status: x.status });
+    return true;
+  });
+  ipcMain.handle("po:receive", (_, x) => {
+    const tx = db.transaction(v => {
+      const po = db.prepare("SELECT * FROM po_orders WHERE id=?").get(v.po_id);
+      if (!po) throw new Error("Purchase order not found");
+      if (po.status === "RECEIVED" || po.status === "CANCELLED") throw new Error(`Purchase order is ${po.status.toLowerCase()}`);
+      const purchaseItems = [];
+      for (const line of v.items) {
+        const poItem = db.prepare("SELECT * FROM po_items WHERE id=?").get(line.po_item_id);
+        if (!poItem) throw new Error("Purchase order item not found");
+        const remaining = poItem.quantity - (poItem.received_quantity || 0);
+        if (Number(line.quantity) > remaining) throw new Error(`Received quantity exceeds ordered quantity for item #${poItem.id}`);
+        db.prepare("UPDATE po_items SET received_quantity = received_quantity + ? WHERE id=?").run(line.quantity, poItem.id);
+        purchaseItems.push({ product_id: poItem.product_id, quantity: line.quantity, rate: line.rate ?? poItem.rate });
       }
-      const balance = subtotal - paid;
-      if (v.supplier_id && balance > 0)
-        db.prepare("INSERT INTO supplier_transactions(supplier_id,type,direction,amount,reference,note,payment_method,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
-          .run(v.supplier_id, "PURCHASE_CREDIT", 1, balance, no, "Credit purchase", v.payment_method, v.actorId || null, now());
-      if (paid > 0 && (v.payment_method === "Cash" || v.payment_method === "Partial")) cashTx("OUT", "PURCHASE", paid, no, "Purchase", v.actorId);
-      audit(v.actorId, "CREATE", "purchase", purchase.lastInsertRowid, { invoice_no: no, total: subtotal, paid, balance });
-      return { id: purchase.lastInsertRowid, invoice_no: no, total: subtotal, paid, balance };
+      const purchase = createPurchaseTx({
+        supplier_id: po.supplier_id, po_id: po.id, location_id: po.location_id,
+        payment_method: v.payment_method || "Cash", paid: v.paid || 0, notes: `From ${po.po_no}`,
+        items: purchaseItems, actorId: v.actorId,
+      });
+      const items = db.prepare("SELECT * FROM po_items WHERE po_id=?").all(po.id);
+      const fullyReceived = items.every((i) => (i.received_quantity || 0) >= i.quantity - 0.0001);
+      const newStatus = fullyReceived ? "RECEIVED" : "PARTIALLY_RECEIVED";
+      db.prepare("UPDATE po_orders SET status=? WHERE id=?").run(newStatus, po.id);
+      db.prepare("INSERT INTO notifications(type,title,body,entity,entity_id,severity,created_at) VALUES(?,?,?,?,?,?,?)")
+        .run("PO_STATUS", `${po.po_no} ${newStatus === "RECEIVED" ? "fully received" : "partially received"}`, `Converted into purchase ${purchase.invoice_no}`, "po_order", po.id, "info", now());
+      return { ...purchase, po_status: newStatus };
     });
     return tx(x);
   });
 
-  // ---- Purchase Returns ------------------------------------------------------
+  // ---- Purchase Returns (with credit note; Section 23 — instant post) -------
   ipcMain.handle("purchaseReturns:create", (_, x) => {
     const tx = db.transaction(v => {
       const purchase = db.prepare("SELECT * FROM purchases WHERE id=?").get(v.purchase_id);
       if (!purchase) throw new Error("Original purchase not found");
       let total = 0;
       const no = nextNo("PR");
-      const rItem = db.prepare("INSERT INTO purchase_return_items(return_id,purchase_item_id,product_id,quantity,rate,amount) VALUES(?,?,?,?,?,?)");
-      const ret = db.prepare("INSERT INTO purchase_returns(return_no,purchase_id,supplier_id,total,reason,user_id,created_at) VALUES(?,?,?,?,?,?,?)")
-        .run(no, v.purchase_id, purchase.supplier_id, 0, v.reason || "", v.actorId || null, now());
+      const creditNoteNo = nextNo("CN");
+      const rItem = db.prepare("INSERT INTO purchase_return_items(return_id,purchase_item_id,product_id,quantity,rate,amount,batch_ref) VALUES(?,?,?,?,?,?,?)");
+      const ret = db.prepare("INSERT INTO purchase_returns(return_no,purchase_id,supplier_id,total,reason,credit_note_no,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
+        .run(no, v.purchase_id, purchase.supplier_id, 0, v.reason || "", creditNoteNo, v.actorId || null, now());
       for (const i of v.items) {
         const pi = db.prepare("SELECT * FROM purchase_items WHERE id=?").get(i.purchase_item_id);
         if (!pi) throw new Error("Original purchase item not found");
@@ -560,15 +876,15 @@ function registerIpc() {
         db.prepare("UPDATE purchase_items SET returned_quantity = returned_quantity + ? WHERE id=?").run(i.quantity, pi.id);
         const amount = Number(i.quantity) * pi.rate;
         total += amount;
-        rItem.run(ret.lastInsertRowid, pi.id, pi.product_id, i.quantity, pi.rate, amount);
-        applyStock(pi.product_id, -Number(i.quantity), 0, "PURCHASE_RETURN", no, v.reason || "Purchase return", v.actorId);
+        rItem.run(ret.lastInsertRowid, pi.id, pi.product_id, i.quantity, pi.rate, amount, i.batch_ref || null);
+        applyStock(pi.product_id, purchase.location_id, -Number(i.quantity), 0, "PURCHASE_RETURN", no, v.reason || "Purchase return", v.actorId);
       }
       db.prepare("UPDATE purchase_returns SET total=? WHERE id=?").run(total, ret.lastInsertRowid);
       if (purchase.supplier_id)
         db.prepare("INSERT INTO supplier_transactions(supplier_id,type,direction,amount,reference,note,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
           .run(purchase.supplier_id, "PURCHASE_RETURN", -1, total, no, v.reason || "Purchase return", v.actorId || null, now());
-      audit(v.actorId, "CREATE", "purchase_return", ret.lastInsertRowid, { return_no: no, total });
-      return { id: ret.lastInsertRowid, return_no: no, total };
+      audit(v.actorId, "CREATE", "purchase_return", ret.lastInsertRowid, { return_no: no, total, credit_note_no: creditNoteNo });
+      return { id: ret.lastInsertRowid, return_no: no, total, credit_note_no: creditNoteNo };
     });
     return tx(x);
   });
@@ -594,19 +910,30 @@ function registerIpc() {
     return tx(x);
   });
 
-  // ---- Expenses ---------------------------------------------------------
+  // ---- Expenses / Recurring / Budgets ---------------------------------------
   ipcMain.handle("expenses:list", () => db.prepare("SELECT * FROM expenses ORDER BY id DESC LIMIT 300").all());
   ipcMain.handle("expenses:add", (_, x) => {
     const tx = db.transaction(v => {
       const no = nextNo("EXP");
-      const r = db.prepare("INSERT INTO expenses(expense_no,title,category,amount,payment_method,paid_by,note,expense_date,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
-        .run(no, v.title, v.category || "Miscellaneous", v.amount || 0, v.payment_method || "Cash", v.paid_by || "", v.note || "", v.expense_date || today(), v.actorId || null, now());
+      const r = db.prepare("INSERT INTO expenses(expense_no,title,category,amount,payment_method,paid_by,receipt_path,note,expense_date,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+        .run(no, v.title, v.category || "Miscellaneous", v.amount || 0, v.payment_method || "Cash", v.paid_by || "", v.receipt_path || "", v.note || "", v.expense_date || today(), v.actorId || null, now());
       if ((v.payment_method || "Cash") === "Cash" && v.amount > 0) cashTx("OUT", "EXPENSE", Number(v.amount), no, v.title, v.actorId);
       audit(v.actorId, "CREATE", "expense", r.lastInsertRowid, { title: v.title, amount: v.amount });
       return r.lastInsertRowid;
     });
     return tx(x);
   });
+  ipcMain.handle("recurringExpenses:list", () => db.prepare("SELECT * FROM recurring_expenses ORDER BY next_run_date").all());
+  ipcMain.handle("recurringExpenses:save", (_, x) => {
+    if (x.id) db.prepare("UPDATE recurring_expenses SET title=?,category=?,amount=?,payment_method=?,frequency=?,day_of_month=?,status=? WHERE id=?")
+      .run(x.title, x.category, x.amount, x.payment_method || "Cash", x.frequency || "MONTHLY", x.day_of_month || 1, x.status || "active", x.id);
+    else db.prepare("INSERT INTO recurring_expenses(title,category,amount,payment_method,frequency,day_of_month,next_run_date,created_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(x.title, x.category, x.amount, x.payment_method || "Cash", x.frequency || "MONTHLY", x.day_of_month || 1, x.next_run_date || today(), now());
+    return db.prepare("SELECT * FROM recurring_expenses ORDER BY next_run_date").all();
+  });
+  ipcMain.handle("recurringExpenses:runDue", () => { runDueRecurringExpenses(); return true; });
+  ipcMain.handle("budgets:list", (_, periodMonth) => db.prepare("SELECT * FROM budgets WHERE period_month=?").all(periodMonth));
+  ipcMain.handle("budgets:set", (_, x) => { db.prepare("INSERT INTO budgets(category,period_month,amount) VALUES(?,?,?) ON CONFLICT(category,period_month) DO UPDATE SET amount=excluded.amount").run(x.category, x.period_month, x.amount); return true; });
 
   // ---- Cash register (Section 7/26/27/69) --------------------------------
   ipcMain.handle("cash:current", () => {
@@ -624,7 +951,6 @@ function registerIpc() {
     return r.lastInsertRowid;
   });
   ipcMain.handle("cash:transaction", (_, x) => {
-    // Owner cash added / withdrawal / other cash in-out that isn't tied to a sale/purchase/payment/expense.
     const reg = currentOpenRegister();
     if (!reg) throw new Error("No cash register is open");
     const category = x.category || (x.direction === "IN" ? "OTHER_IN" : "OTHER_OUT");
@@ -649,26 +975,75 @@ function registerIpc() {
     return tx(x);
   });
 
-  // ---- Dashboard & Reports (Section 44 / 30) ------------------------------
-  ipcMain.handle("dashboard", () => {
-    const start = `${today()}T00:00:00`;
-    const sales = db.prepare("SELECT COALESCE(SUM(total),0) v FROM sales WHERE sale_date=? AND status='COMPLETED'").get(today()).v;
-    const purchases = db.prepare("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE purchase_date=?").get(today()).v;
-    const expensesToday = db.prepare("SELECT COALESCE(SUM(amount),0) v FROM expenses WHERE expense_date=?").get(today()).v;
-    const cogs = db.prepare("SELECT COALESCE(SUM(cost*quantity),0) v FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.sale_date=? AND s.status='COMPLETED'").get(today()).v;
-    const profit = sales - cogs;
-    const low = db.prepare("SELECT name,name_urdu,stock,min_stock,package_unit FROM products WHERE status='active' AND stock<=min_stock ORDER BY stock").all();
-    const receivables = db.prepare("SELECT COALESCE(SUM(balance),0) v FROM (SELECT COALESCE(opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance FROM customers c)").get().v;
-    const payables = db.prepare("SELECT COALESCE(SUM(balance),0) v FROM (SELECT COALESCE(opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance FROM suppliers s)").get().v;
-    const stockValue = db.prepare("SELECT COALESCE(SUM(stock*avg_cost),0) v FROM products WHERE status='active'").get().v;
-    const reg = currentOpenRegister();
-    const cashInHand = reg ? reg.opening_cash + registerTotals(reg.id).cashIn - registerTotals(reg.id).cashOut : null;
-    return { sales, purchases, expenses: expensesToday, profit, low, receivables, payables, stockValue, cashInHand, registerOpen: !!reg };
+  // ---- Bank accounts / Petty cash / Cash transfer ---------------------------
+  ipcMain.handle("bank:accountsList", () => db.prepare(`
+    SELECT b.*, COALESCE(b.opening_balance,0)+COALESCE((SELECT SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END) FROM bank_transactions t WHERE t.account_id=b.id),0) balance
+    FROM bank_accounts b WHERE b.status='active' ORDER BY b.name`).all());
+  ipcMain.handle("bank:accountSave", (_, x) => {
+    if (x.id) db.prepare("UPDATE bank_accounts SET name=?,account_number=?,bank_name=? WHERE id=?").run(x.name, x.account_number || "", x.bank_name || "", x.id);
+    else db.prepare("INSERT INTO bank_accounts(name,account_number,bank_name,opening_balance,created_at) VALUES(?,?,?,?,?)").run(x.name, x.account_number || "", x.bank_name || "", x.opening_balance || 0, now());
+    return true;
+  });
+  ipcMain.handle("bank:transactionsList", (_, accountId) => db.prepare("SELECT * FROM bank_transactions WHERE account_id=? ORDER BY id DESC").all(accountId));
+  ipcMain.handle("petty:list", () => db.prepare("SELECT * FROM petty_cash ORDER BY id DESC LIMIT 300").all());
+  ipcMain.handle("petty:balance", () => db.prepare("SELECT COALESCE(SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END),0) v FROM petty_cash").get().v);
+
+  ipcMain.handle("cash:transfer", (_, x) => {
+    const tx = db.transaction(v => {
+      const no = nextNo("CT");
+      const amt = Number(v.amount);
+      if (amt <= 0) throw new Error("Amount must be greater than zero");
+      const legOut = (kind) => {
+        if (kind === "CASH") cashTx("OUT", "CASH_TRANSFER", amt, no, v.note || "Cash transfer", v.actorId);
+        else if (kind === "BANK") db.prepare("INSERT INTO bank_transactions(account_id,direction,category,amount,reference,note,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
+          .run(v.from_account_id, "OUT", "TRANSFER_OUT", amt, no, v.note || "", v.actorId || null, now());
+        else if (kind === "PETTY") db.prepare("INSERT INTO petty_cash(direction,amount,reference,note,user_id,created_at) VALUES(?,?,?,?,?,?)").run("OUT", amt, no, v.note || "", v.actorId || null, now());
+      };
+      const legIn = (kind) => {
+        if (kind === "CASH") cashTx("IN", "CASH_TRANSFER", amt, no, v.note || "Cash transfer", v.actorId);
+        else if (kind === "BANK") db.prepare("INSERT INTO bank_transactions(account_id,direction,category,amount,reference,note,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
+          .run(v.to_account_id, "IN", "TRANSFER_IN", amt, no, v.note || "", v.actorId || null, now());
+        else if (kind === "PETTY") db.prepare("INSERT INTO petty_cash(direction,amount,reference,note,user_id,created_at) VALUES(?,?,?,?,?,?)").run("IN", amt, no, v.note || "", v.actorId || null, now());
+      };
+      if ((v.from === "CASH" || v.to === "CASH") && !currentOpenRegister()) throw new Error("No cash register is open");
+      legOut(v.from);
+      legIn(v.to);
+      audit(v.actorId, "CASH_TRANSFER", "transfer", null, { from: v.from, to: v.to, amount: amt, reference: no });
+      return { reference: no };
+    });
+    return tx(x);
   });
 
-  ipcMain.handle("reports:summary", (_, range) => {
-    const r = range || {};
-    const from = r.from || "1900-01-01", to = r.to || "2999-12-31";
+  // ---- Payment methods / Permissions -----------------------------------------
+  ipcMain.handle("paymentMethods:list", () => db.prepare("SELECT * FROM payment_methods ORDER BY sort_order,name").all());
+  ipcMain.handle("paymentMethods:save", (_, x) => {
+    if (x.id) db.prepare("UPDATE payment_methods SET name=?,status=? WHERE id=?").run(x.name, x.status || "active", x.id);
+    else db.prepare("INSERT INTO payment_methods(name,status,sort_order) VALUES(?,?,?)").run(x.name, "active", 99);
+    return db.prepare("SELECT * FROM payment_methods ORDER BY sort_order,name").all();
+  });
+
+  ipcMain.handle("permissions:definitions", () => PERMISSIONS);
+  ipcMain.handle("permissions:forRole", (_, role) => db.prepare("SELECT permission,allowed FROM role_permissions WHERE role=?").all(role));
+  ipcMain.handle("permissions:update", (_, x) => {
+    db.prepare("INSERT INTO role_permissions(role,permission,allowed) VALUES(?,?,?) ON CONFLICT(role,permission) DO UPDATE SET allowed=excluded.allowed")
+      .run(x.role, x.permission, x.allowed ? 1 : 0);
+    audit(x.actorId, "PERMISSION_CHANGED", "role", null, { role: x.role, permission: x.permission, allowed: x.allowed });
+    return true;
+  });
+  ipcMain.handle("permissions:check", (_, role, permission) => {
+    const row = db.prepare("SELECT allowed FROM role_permissions WHERE role=? AND permission=?").get(role, permission);
+    return !!row?.allowed;
+  });
+
+  // ---- Notifications ----------------------------------------------------
+  ipcMain.handle("notifications:list", (_, limit) => db.prepare("SELECT * FROM notifications ORDER BY is_read ASC, id DESC LIMIT ?").all(limit || 50));
+  ipcMain.handle("notifications:unreadCount", () => db.prepare("SELECT COUNT(*) c FROM notifications WHERE is_read=0").get().c);
+  ipcMain.handle("notifications:markRead", (_, id) => { db.prepare("UPDATE notifications SET is_read=1 WHERE id=?").run(id); return true; });
+  ipcMain.handle("notifications:markAllRead", () => { db.prepare("UPDATE notifications SET is_read=1 WHERE is_read=0").run(); return true; });
+  ipcMain.handle("notifications:refresh", () => { generateNotifications(); return db.prepare("SELECT * FROM notifications ORDER BY is_read ASC, id DESC LIMIT 50").all(); });
+
+  // ---- Dashboard & Reports (Section 44 / 30) ------------------------------
+  function computeSummary(from, to) {
     const sales = db.prepare("SELECT COALESCE(SUM(total),0) v FROM sales WHERE sale_date BETWEEN ? AND ? AND status='COMPLETED'").get(from, to).v;
     const salesReturns = db.prepare("SELECT COALESCE(SUM(sr.total),0) v FROM sales_returns sr JOIN sales s ON s.id=sr.sale_id WHERE s.sale_date BETWEEN ? AND ?").get(from, to).v;
     const purchases = db.prepare("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE purchase_date BETWEEN ? AND ?").get(from, to).v;
@@ -686,6 +1061,56 @@ function registerIpc() {
       sales, salesReturns, netSales, purchases, purchaseReturns, expenses, cogs,
       grossProfit, netProfit, grossMarginPct: netSales ? (grossProfit / netSales) * 100 : 0, netMarginPct: netSales ? (netProfit / netSales) * 100 : 0,
       cashSales, creditSales, retailSales, wholesaleSales
+    };
+  }
+  function previousPeriod(from, to) {
+    const fromD = new Date(from), toD = new Date(to);
+    const lengthDays = Math.round((toD - fromD) / 86400000) + 1;
+    const prevTo = new Date(fromD); prevTo.setDate(prevTo.getDate() - 1);
+    const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - (lengthDays - 1));
+    return { from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
+  }
+  function pctDelta(curr, prev) { return prev ? ((curr - prev) / Math.abs(prev)) * 100 : (curr ? 100 : 0); }
+
+  ipcMain.handle("dashboard", () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const sales = db.prepare("SELECT COALESCE(SUM(total),0) v FROM sales WHERE sale_date=? AND status='COMPLETED'").get(today()).v;
+    const salesYesterday = db.prepare("SELECT COALESCE(SUM(total),0) v FROM sales WHERE sale_date=? AND status='COMPLETED'").get(yesterday).v;
+    const purchases = db.prepare("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE purchase_date=?").get(today()).v;
+    const expensesToday = db.prepare("SELECT COALESCE(SUM(amount),0) v FROM expenses WHERE expense_date=?").get(today()).v;
+    const cogs = db.prepare("SELECT COALESCE(SUM(cost*quantity),0) v FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.sale_date=? AND s.status='COMPLETED'").get(today()).v;
+    const profit = sales - cogs;
+    const low = db.prepare("SELECT name,name_urdu,stock,min_stock,package_unit FROM products WHERE status='active' AND stock<=min_stock ORDER BY stock").all();
+    const receivables = db.prepare("SELECT COALESCE(SUM(balance),0) v FROM (SELECT COALESCE(opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance FROM customers c)").get().v;
+    const payables = db.prepare("SELECT COALESCE(SUM(balance),0) v FROM (SELECT COALESCE(opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance FROM suppliers s)").get().v;
+    const stockValue = db.prepare("SELECT COALESCE(SUM(stock*avg_cost),0) v FROM products WHERE status='active'").get().v;
+    const reg = currentOpenRegister();
+    const cashInHand = reg ? reg.opening_cash + registerTotals(reg.id).cashIn - registerTotals(reg.id).cashOut : null;
+    const creditSalesToday = db.prepare("SELECT COALESCE(SUM(balance),0) v,COUNT(*) n FROM sales WHERE sale_date=? AND status='COMPLETED' AND balance>0").get(today());
+    return {
+      sales, salesDeltaPct: pctDelta(sales, salesYesterday), purchases, expenses: expensesToday, profit, low,
+      receivables, payables, stockValue, cashInHand, registerOpen: !!reg,
+      salesOnCredit: creditSalesToday.v, salesOnCreditCount: creditSalesToday.n,
+    };
+  });
+
+  ipcMain.handle("reports:summary", (_, range) => {
+    const r = range || {};
+    return computeSummary(r.from || "1900-01-01", r.to || "2999-12-31");
+  });
+  ipcMain.handle("reports:compare", (_, range) => {
+    const from = range.from, to = range.to;
+    const prev = previousPeriod(from, to);
+    const current = computeSummary(from, to);
+    const previous = computeSummary(prev.from, prev.to);
+    return {
+      current, previous,
+      deltaPct: {
+        sales: pctDelta(current.sales, previous.sales),
+        netProfit: pctDelta(current.netProfit, previous.netProfit),
+        expenses: pctDelta(current.expenses, previous.expenses),
+        grossProfit: pctDelta(current.grossProfit, previous.grossProfit),
+      },
     };
   });
 

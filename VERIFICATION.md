@@ -23,6 +23,28 @@
     to the Electron ABI afterwards with
     `npx electron-builder install-app-deps` before `npm run dev`/`dist`).
 
+## Phase 0 automated checks (this session)
+- `scripts/test-phase0.cjs` (`npm run test:phase0`) — same headless-IPC
+  approach as the Section 69 test, covering: per-location stock adjustment
+  and transfer (including rejecting a transfer that exceeds source stock,
+  and confirming company-wide total stock is unchanged by a transfer);
+  Purchase Order draft → sent → partial receipt → full receipt (each receipt
+  creates a real purchase and updates real stock; over-receiving a closed PO
+  is rejected); configurable payment methods; the permission matrix's
+  per-role defaults and live updates; notification generation/dedup/mark-read;
+  cash↔bank and cash↔petty-cash transfers; a due recurring expense actually
+  posting and hitting the cash register; FIFO aging correctly bucketing a
+  backdated 95-day-old credit sale into "over 90 days"; and period-over-period
+  report comparison. All assertions passed.
+- `npm run test:accounting` re-run against the Phase 0 schema — still passes
+  unchanged, confirming the location/PO/tax additions didn't alter existing
+  sale/purchase/cash behavior.
+- `npx tsc --noEmit` and `npm run build:web` both pass against the updated
+  backend (frontend IPC calls are untyped `Record<string,unknown>` payloads,
+  so the new optional fields — `location_id`, `tax`, `po_id`, etc. — don't
+  require frontend changes to keep compiling; wiring them into the UI is the
+  page-level phases' job).
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

@@ -73,6 +73,67 @@ things that don't exist yet.
 - **Audit log table** wired into sale/purchase/payment/expense/price-change/
   stock-adjustment/cash-open/cash-close/login/settings actions.
 
+## Phase 0 — Backend v2 (this pass, real, tested)
+
+Driven by 19 reference-design images covering the full page list, plus
+explicit scope decisions made with the owner. Backend only — no UI yet; the
+page-level phases (A–N, tracked as tasks) build the screens on top of this.
+
+- **Per-location stock.** New `locations` + `product_location_stock` tables;
+  every stock movement, sale, purchase and adjustment now carries a
+  `location_id`. `products.stock`/`avg_cost` stay as the authoritative
+  cached **total** across locations (weighted-average cost is a single
+  company-wide basis, not per-location), so every existing total-stock query
+  kept working unchanged. Real stock **transfers** between locations
+  (the `TRANSFER` movement type, defined since Phase 3 but unused until now)
+  post as two linked movements and net to zero on the total.
+- **Real Purchase Orders** — `po_orders`/`po_items`: DRAFT → SENT →
+  PARTIALLY_RECEIVED/RECEIVED → converts into a real `purchases` row (full
+  or partial receipt) through the same atomic purchase-creation transaction
+  used by the direct Purchases flow, so PO-sourced stock/ledger/cash effects
+  are identical to a manual purchase.
+- **Configurable payment methods** — `payment_methods` table replaces the
+  hardcoded list; sales/purchases/expenses still store the method as text so
+  history is unaffected by later renames.
+- **Tax & discount settings** — `sales`/`purchases` gained `discount`/`tax`
+  columns; settings gained sales/purchase tax rate + discount-cap toggles.
+- **Notifications** — a real `notifications` table (not cosmetic): low-stock
+  and >90-day-overdue-receivable alerts generate automatically (dedup'd
+  against existing unread ones), plus a notification on every PO receipt.
+- **Permission matrix (data layer)** — `role_permissions` (24 Section-39
+  permissions × 8 roles) seeded with sensible per-role defaults and a working
+  read/update API. IPC-boundary *enforcement* and the matrix editor UI are
+  Phase M — today any logged-in user can still call any handler.
+- **Bank accounts, petty cash, and cash transfers** — `bank_accounts`/
+  `bank_transactions`, `petty_cash`, and a `cash:transfer` IPC that moves
+  money between the cash register / a bank account / petty cash as two
+  linked, correctly-signed entries.
+- **Recurring expenses & budgets** — `recurring_expenses` auto-posts a real
+  expense (and hits the cash register if paid in cash) when due, advancing
+  its own next-run date; `budgets` stores a per-category monthly cap.
+- **Customer/supplier depth** — CNIC, customer groups, supplier NTN/payment
+  terms/products-supplied. An optional free-text `batch_ref` on return line
+  items (no real batch costing — see decisions below).
+- **FIFO aging** for both customer and supplier ledgers (0-30/31-60/61-90/
+  90+ buckets), and **period-over-period report comparison**
+  (`reports:compare`) for the "vs last period" deltas every report mockup
+  shows.
+- All of the above verified by a dedicated integration test
+  (`scripts/test-phase0.cjs`, run with `npm run test:phase0`) exercising the
+  real IPC handlers: location transfer math, PO partial/full receipt, permission
+  grants taking effect, notification generation/dedup, cash↔bank↔petty
+  transfers, a recurring expense actually firing, 95-day aging landing in the
+  over-90 bucket, and period comparison producing real deltas. The original
+  Section 69 test (`npm run test:accounting`) still passes unchanged —
+  Phase 0 didn't alter existing behavior, only added onto it.
+
+**Explicit scope decisions behind Phase 0** (owner-confirmed): multi-location
+stock and Purchase Orders were built for real; batch/lot tracking stayed as
+an optional free-text reference rather than real FIFO batch costing; returns
+post instantly rather than requiring a second-user approval step; SMS/
+WhatsApp/email "send" buttons seen in the reference images will be stubbed
+in the UI (Phase D/E) until a real messaging provider is connected.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -90,9 +151,10 @@ These are named explicitly so nobody mistakes silence for "it exists":
   the browser print dialog (`window.print()`), which is the documented
   fallback for the web/PWA path (Section 76); real USB ESC/POS device
   integration for the desktop build does not exist.
-- **Granular permission enforcement** (Section 39). Roles exist on users,
-  but there is no per-action permission matrix gating IPC calls yet — any
-  logged-in user can currently call any handler.
+- **Granular permission *enforcement*** (Section 39). The `role_permissions`
+  matrix now exists and is readable/writable (Phase 0), but no IPC handler
+  actually checks it yet — any logged-in user can still call any handler.
+  Real enforcement + the editor UI land in Phase M.
 - **AI Business Assistant** (Sections 59–60) — no page, no query layer.
 - **Full UI localization.** The Urdu toggle covers navigation/chrome and
   product names, not every label in every form.
@@ -101,15 +163,27 @@ These are named explicitly so nobody mistakes silence for "it exists":
 - **Data-grid features** (Section 53): column visibility, CSV/PDF export,
   server-side pagination — tables are simple, unpaginated, client-filtered.
 
-## Suggested next phases
+## Page-level phases (A–N), queued as tasks, next up
 
-1. Granular permissions (Section 39) — small, high-value, no architecture change.
-2. CSV/PDF export on Reports and DataTable.
-3. Native ESC/POS printing for the Electron build (node-thermal-printer or
-   escpos over USB) alongside the existing browser-print path.
-4. Voice input as a scoped feature (Web Speech API first, cloud STT later),
-   starting with product search and customer name/address fields, always
-   behind the confirm-before-save pattern from Section 19.
-5. Cloud/offline sync — this is the biggest remaining subsystem and
-   deserves its own dedicated design pass (server API, UUIDs, sync queue,
-   conflict UI) rather than being bolted on incrementally.
+Redesigning every screen against the 19 reference images, in this order:
+**A** shell (hero topbar, sidebar submenus, footer, fonts, notifications,
+quick actions) → **B** Settings v2 → **C** Products/Inventory v2 → **D**
+Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
+(category sidebar, F-keys, real Hold/Resume/Quotation) → **G** Purchases v2
+→ **H** Returns v2 → **I** Cash Management v2 → **J** Expenses v2 → **K**
+Dashboard v2 → **L** Reports suite → **M** Users & Permissions v2 (real
+matrix enforcement) → **N** Invoice/Printer Settings + 58mm dual-token +
+real barcode rendering + receipt polish to match the physical mockup.
+
+## Still not started after Phase 0/A–N
+
+1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
+   the only path until this is built.
+2. Voice input (Sections 17–19) — Web Speech API first, cloud STT later,
+   always behind the confirm-before-save pattern.
+3. Cloud/offline sync (Sections 5, 13, 79–81) — the biggest remaining
+   subsystem; deserves its own dedicated design pass rather than being
+   bolted on incrementally.
+4. Tauri desktop packaging — still Electron.
+5. AI Business Assistant (Sections 59–60).
+6. Real messaging integration (SMS/WhatsApp/email) behind the send buttons.

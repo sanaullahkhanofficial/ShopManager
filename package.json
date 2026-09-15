@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "check": "node --check electron/main.cjs && npm run typecheck",
     "test:accounting": "node scripts/test-accounting.cjs",
+    "test:phase0": "node scripts/test-phase0.cjs",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
