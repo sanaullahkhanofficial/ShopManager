@@ -95,9 +95,38 @@ export interface Supplier {
   address: string;
   city: string;
   category: string;
+  ntn: string;
+  payment_term_days: number;
+  products_supplied: string;
   opening_balance: number;
   notes: string;
   balance: number;
+  status: string;
+  created_at: string;
+}
+
+export type PoStatus = "DRAFT" | "SENT" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CANCELLED";
+
+export interface PurchaseOrder {
+  id: number;
+  po_no: string;
+  supplier_id: number;
+  supplier_name?: string;
+  location_id: number;
+  status: PoStatus;
+  expected_date: string | null;
+  notes: string;
+  created_at: string;
+}
+
+export interface PurchaseOrderItem {
+  id: number;
+  po_id: number;
+  product_id: number;
+  product_name?: string;
+  quantity: number;
+  rate: number;
+  received_quantity: number;
 }
 
 export type PaymentMethod = "Cash" | "Bank Transfer" | "JazzCash" | "Easypaisa" | "Cheque" | "Credit" | "Partial";
@@ -257,6 +286,13 @@ export interface Aging {
   d31_60: number;
   d61_90: number;
   over90: number;
+}
+
+export interface SupplierStats {
+  totalPurchases: number;
+  totalInvoices: number;
+  lastPurchaseDate: string | null;
+  totalPayments: number;
 }
 
 export interface CustomerStats {

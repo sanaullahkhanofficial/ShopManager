@@ -307,6 +307,45 @@ inert form fields:
   smoke test confirms the Customers list+form, the full ledger workspace,
   and the aging report tab all render correctly with zero console errors.
 
+## Phase E — Suppliers v2 + Supplier Ledger + real Purchase Orders (this pass, real, tested)
+
+- **Suppliers page rebuilt**: same proven list+always-visible-form pattern
+  as Products/Customers, now with NTN, payment terms, products supplied,
+  and real summary cards (total suppliers, this month's purchases —
+  computed from real purchase records, not a placeholder, outstanding
+  payable, and advance payments where a supplier's balance has gone
+  negative from overpayment). CSV import/export matching by phone.
+- **Supplier Ledger & Payments**: a new dedicated page mirroring the
+  Customer Ledger workspace — picker, header stats, 5 tabs (Ledger with a
+  real running balance, **Purchase Orders** scoped to this supplier,
+  Payments, Purchase History, Ageing Report), a live Make Payment form,
+  Print/Export.
+- **The real Purchase Orders workflow, end to end in the UI**: a new
+  Purchase Orders page lists every PO with status-appropriate actions
+  (Send for DRAFT, Receive for SENT/PARTIALLY_RECEIVED, Cancel for
+  DRAFT/SENT). "New Purchase Order" builds a draft with line items against
+  real products. "Receive" shows ordered/already-received/remaining per
+  item, accepts a partial or full quantity, a payment method and amount,
+  and calls the Phase 0 `po:receive` transaction — which creates a real
+  purchase, moves real stock, and updates the PO's status precisely as
+  tested.
+- **New backend**: `suppliers:stats` and `suppliers:recentPurchases` (real
+  aggregates from `purchases`, matching the Customers pattern).
+- **Same partial-update safety fix, retroactively verified**: the
+  `suppliers:save` fix made proactively in Phase D is now exercised for
+  real by the Suppliers UI (e.g. editing just the payment term) — covered
+  by this phase's own test.
+- Verified with `scripts/test-phaseE.cjs` (13 assertions: safe partial
+  supplier updates, the full PO lifecycle create → send → partially
+  receive → fully receive with correct payable increases at each step,
+  `suppliers:stats`/`recentPurchases` reflecting the PO-derived purchases,
+  a payment netting the balance correctly, and aging buckets summing to
+  the outstanding total) — all pass, plus all five earlier suites re-run
+  clean. Visual smoke test confirms Suppliers, the full Supplier Ledger
+  workspace (including its Purchase Orders tab), the Purchase Orders list
+  (correct per-status actions), and the New Purchase Order modal all
+  render correctly with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":

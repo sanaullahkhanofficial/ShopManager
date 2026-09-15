@@ -21,6 +21,8 @@ import { AIAssistant } from "./pages/AIAssistant";
 import { StockAdjustment } from "./pages/StockAdjustment";
 import { StockTransfer } from "./pages/StockTransfer";
 import { CustomerLedger } from "./pages/CustomerLedger";
+import { SupplierLedger } from "./pages/SupplierLedger";
+import { PurchaseOrders } from "./pages/PurchaseOrders";
 import { Sidebar, NAV_ICONS, type PageId } from "./components/layout/Sidebar";
 import { TopBar } from "./components/layout/TopBar";
 import { Footer } from "./components/layout/Footer";
@@ -32,6 +34,7 @@ const TITLES: Record<PageId, string> = {
   cash: "Cash Management", payments: "Payments", expenses: "Expenses", reports: "Reports",
   users: "Users & Permissions", settings: "Settings", backup: "Backup & Health", aiAssistant: "AI Assistant",
   stockAdjustment: "Stock Adjustment", stockTransfer: "Stock Transfer", customerLedger: "Customer Ledger & Payments",
+  supplierLedger: "Supplier Ledger & Payments", purchaseOrders: "Purchase Orders",
 };
 
 export default function App() {
@@ -40,6 +43,7 @@ export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [page, setPage] = useState<PageId>("dashboard");
   const [ledgerCustomerId, setLedgerCustomerId] = useState<number | null>(null);
+  const [ledgerSupplierId, setLedgerSupplierId] = useState<number | null>(null);
 
   useEffect(() => { api.settingsGet().then((s) => setSettings(s as Settings)); }, []);
   useEffect(() => { document.documentElement.setAttribute("dir", dir); }, [dir]);
@@ -67,7 +71,9 @@ export default function App() {
           {page === "stockTransfer" && <StockTransfer user={user} settings={settings} />}
           {page === "customers" && <Customers user={user} onNavigate={setPage} onOpenLedger={setLedgerCustomerId} />}
           {page === "customerLedger" && <CustomerLedger user={user} settings={settings} initialCustomerId={ledgerCustomerId} />}
-          {page === "suppliers" && <Suppliers />}
+          {page === "suppliers" && <Suppliers user={user} onNavigate={setPage} onOpenLedger={setLedgerSupplierId} />}
+          {page === "supplierLedger" && <SupplierLedger user={user} settings={settings} initialSupplierId={ledgerSupplierId} onNavigate={setPage} />}
+          {page === "purchaseOrders" && <PurchaseOrders user={user} />}
           {page === "salesReturns" && <SalesReturns user={user} />}
           {page === "purchaseReturns" && <PurchaseReturns user={user} />}
           {page === "cash" && <CashRegister user={user} />}

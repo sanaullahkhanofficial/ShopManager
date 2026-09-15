@@ -48,6 +48,15 @@ export const api = {
   suppliersList: () => invoke("suppliers:list"),
   suppliersSave: (x: Record<string, unknown>) => invoke("suppliers:save", x),
   suppliersLedger: (id: number) => invoke("suppliers:ledger", id),
+  suppliersAging: (id: number) => invoke("suppliers:aging", id),
+  suppliersStats: (id: number) => invoke("suppliers:stats", id),
+  suppliersRecentPurchases: (id: number) => invoke("suppliers:recentPurchases", id),
+
+  poList: () => invoke("po:list"),
+  poGet: (id: number) => invoke("po:get", id),
+  poCreate: (x: Record<string, unknown>) => invoke("po:create", x),
+  poUpdateStatus: (x: Record<string, unknown>) => invoke("po:updateStatus", x),
+  poReceive: (x: Record<string, unknown>) => invoke("po:receive", x),
 
   salesList: () => invoke("sales:list"),
   salesGet: (id: number) => invoke("sales:get", id),

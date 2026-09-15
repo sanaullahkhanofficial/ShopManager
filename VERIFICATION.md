@@ -114,6 +114,22 @@ any other network resource.
   correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase E checks (this session)
+- `scripts/test-phaseE.cjs` (`npm run test:phaseE`) — 13 assertions:
+  safe partial supplier updates (payment term changes without nulling
+  name/NTN), the full Purchase Order lifecycle (create as DRAFT → send →
+  partially receive → fully receive) with the supplier payable increasing
+  correctly at each receipt, `suppliers:stats`/`recentPurchases` correctly
+  aggregating the PO-derived purchases, a payment netting the outstanding
+  balance, and aging buckets summing to the total. All passed. The five
+  earlier suites were re-run and still pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed): Suppliers
+  list+form, the full Supplier Ledger workspace including its Purchase
+  Orders tab, the global Purchase Orders list (correct Send/Receive/Cancel
+  actions per status), and the New Purchase Order modal all render
+  correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

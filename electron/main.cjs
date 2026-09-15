@@ -793,6 +793,12 @@ function registerIpc() {
     const rows = db.prepare("SELECT direction,amount,created_at FROM supplier_transactions WHERE supplier_id=? ORDER BY created_at ASC").all(supplierId);
     return computeAging(rows, s.opening_balance, s.created_at);
   });
+  ipcMain.handle("suppliers:stats", (_, supplierId) => {
+    const purchases = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(total),0) total, MAX(purchase_date) lastDate FROM purchases WHERE supplier_id=?").get(supplierId);
+    const payments = db.prepare("SELECT COALESCE(SUM(amount),0) v FROM supplier_transactions WHERE supplier_id=? AND type='PAYMENT'").get(supplierId);
+    return { totalPurchases: purchases.total, totalInvoices: purchases.n, lastPurchaseDate: purchases.lastDate, totalPayments: payments.v };
+  });
+  ipcMain.handle("suppliers:recentPurchases", (_, supplierId) => db.prepare("SELECT * FROM purchases WHERE supplier_id=? ORDER BY id DESC LIMIT 10").all(supplierId));
 
   // ---- Sales (POS) -------------------------------------------------------
   ipcMain.handle("sales:list", () => db.prepare(`SELECT s.*,COALESCE(c.shop_name,c.name) customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id ORDER BY s.id DESC LIMIT 200`).all());

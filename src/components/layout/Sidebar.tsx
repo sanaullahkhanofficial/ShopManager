@@ -3,7 +3,7 @@ import clsx from "clsx";
 import {
   LayoutDashboard, ShoppingCart, Package, Users, Truck, WalletCards, ReceiptText,
   BarChart3, Settings, DatabaseBackup, Undo2, ClipboardList, Sparkles, MapPin,
-  ChevronDown, SlidersHorizontal, ArrowLeftRight, BookText,
+  ChevronDown, SlidersHorizontal, ArrowLeftRight, BookText, ClipboardCheck,
 } from "lucide-react";
 import { useLang } from "../../lib/i18n";
 import { Logo } from "./Logo";
@@ -14,7 +14,7 @@ export type PageId =
   | "dashboard" | "pos" | "purchases" | "products" | "customers" | "suppliers"
   | "salesReturns" | "purchaseReturns" | "cash" | "payments" | "expenses" | "reports"
   | "users" | "settings" | "backup" | "aiAssistant"
-  | "stockAdjustment" | "stockTransfer" | "customerLedger";
+  | "stockAdjustment" | "stockTransfer" | "customerLedger" | "supplierLedger" | "purchaseOrders";
 
 interface NavItem { id: PageId; icon: React.ElementType; badge?: string }
 interface NavGroup { group: true; id: string; label: string; icon: React.ElementType; children: NavItem[] }
@@ -41,7 +41,14 @@ const nav: Array<NavItem | NavGroup> = [
       { id: "customerLedger", icon: BookText },
     ],
   },
-  { id: "suppliers", icon: Truck },
+  {
+    group: true, id: "suppliersGroup", label: "Suppliers", icon: Truck,
+    children: [
+      { id: "suppliers", icon: Truck },
+      { id: "supplierLedger", icon: BookText },
+      { id: "purchaseOrders", icon: ClipboardCheck },
+    ],
+  },
   { id: "salesReturns", icon: Undo2 },
   { id: "purchaseReturns", icon: Undo2 },
   { id: "cash", icon: WalletCards },

@@ -1,100 +1,219 @@
 import React, { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import Papa from "papaparse";
+import {
+  Plus, Search, Truck, ReceiptText, HandCoins, TrendingUp, Upload, Download,
+  RotateCcw, BookText, Mail, MessageCircle, Trash2, Save, Building2,
+} from "lucide-react";
 import { api } from "../lib/api";
-import { money, formatDateTime } from "../lib/format";
+import { money, formatDate } from "../lib/format";
 import { Button } from "../components/ui/Button";
-import { Field, TextAreaField } from "../components/ui/Field";
-import { Modal } from "../components/ui/Modal";
+import { Field, SelectField, TextAreaField } from "../components/ui/Field";
 import { DataTable } from "../components/ui/DataTable";
+import { StatCard } from "../components/ui/StatCard";
 import { useToast } from "../components/ui/Toast";
-import type { Supplier } from "../types";
+import type { AuthUser, Supplier, SupplierStats, LedgerEntry, Purchase } from "../types";
+import type { PageId } from "../components/layout/Sidebar";
 
-export function Suppliers() {
+const emptyDraft = (): Partial<Supplier> => ({});
+
+export function Suppliers({ user, onNavigate, onOpenLedger }: {
+  user: AuthUser; onNavigate?: (p: PageId) => void; onOpenLedger?: (id: number) => void;
+}) {
   const { push } = useToast();
-  const [rows, setRows] = useState<Supplier[]>([]);
-  const [edit, setEdit] = useState<Partial<Supplier> | null>(null);
-  const [ledgerFor, setLedgerFor] = useState<Supplier | null>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [draft, setDraft] = useState<Partial<Supplier>>(emptyDraft());
+  const [stats, setStats] = useState<SupplierStats | null>(null);
+  const [recentTx, setRecentTx] = useState<LedgerEntry[]>([]);
 
-  const load = () => api.suppliersList().then((s) => setRows(s as Supplier[]));
-  useEffect(() => { load(); }, []);
+  const load = () => {
+    api.suppliersList().then((s) => setSuppliers(s as Supplier[]));
+    api.purchasesList().then((p) => setPurchases(p as Purchase[]));
+  };
+  useEffect(load, []);
+
+  useEffect(() => {
+    if (!draft.id) { setStats(null); setRecentTx([]); return; }
+    api.suppliersStats(draft.id).then((s) => setStats(s as SupplierStats));
+    api.suppliersLedger(draft.id).then((r) => setRecentTx((r as LedgerEntry[]).slice(0, 5)));
+  }, [draft.id]);
+
+  const categories = Array.from(new Set(suppliers.map((s) => s.category).filter(Boolean)));
+  const rows = suppliers.filter((s) =>
+    (s.name + " " + s.phone + " " + s.ntn).toLowerCase().includes(query.toLowerCase()) &&
+    (!categoryFilter || s.category === categoryFilter)
+  );
+
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const totalPurchasesThisMonth = purchases.filter((p) => new Date(p.purchase_date) >= monthStart).reduce((a, p) => a + p.total, 0);
+  const totalOutstanding = suppliers.reduce((a, s) => a + Math.max(0, s.balance), 0);
+  const totalAdvance = suppliers.reduce((a, s) => a + Math.max(0, -s.balance), 0);
+
+  function resetForm() { setDraft(emptyDraft()); }
+  function editRow(s: Supplier) { setDraft(s); }
 
   async function save() {
-    if (!edit?.name) { push("error", "Name is required"); return; }
-    await api.suppliersSave(edit);
-    push("success", "Supplier saved");
-    setEdit(null);
+    if (!draft.name) { push("error", "Supplier name is required"); return; }
+    await api.suppliersSave({ ...draft, actorId: user.id });
+    push("success", draft.id ? "Supplier updated" : "Supplier created");
+    resetForm();
+    load();
+  }
+
+  async function deactivate(s: Supplier) {
+    if (!confirm(`Deactivate ${s.name}? They'll drop off the active list.`)) return;
+    await api.suppliersSave({ id: s.id, status: "inactive", actorId: user.id });
+    push("success", "Supplier deactivated");
+    if (draft.id === s.id) resetForm();
+    load();
+  }
+
+  function exportCsv() {
+    const csv = Papa.unparse(suppliers.map((s) => ({
+      name: s.name, contact_person: s.contact_person, phone: s.phone, ntn: s.ntn,
+      category: s.category, city: s.city, products_supplied: s.products_supplied, balance: s.balance,
+    })));
+    api.filesSaveText({ title: "Export Suppliers", defaultPath: "suppliers.csv", content: csv }).then((p) => { if (p) push("success", "Suppliers exported"); });
+  }
+
+  async function importCsv() {
+    const file = await api.filesPickCsv();
+    if (!file) return;
+    const parsed = Papa.parse<Record<string, string>>(file.content, { header: true, skipEmptyLines: true });
+    if (parsed.errors.length) { push("error", `CSV parse error: ${parsed.errors[0].message}`); return; }
+    let created = 0, updated = 0;
+    for (const row of parsed.data) {
+      if (!row.name) continue;
+      const existing = suppliers.find((s) => s.phone && s.phone === row.phone);
+      await api.suppliersSave({
+        id: existing?.id, name: row.name, contact_person: row.contact_person || "", phone: row.phone || "",
+        ntn: row.ntn || "", category: row.category || "", city: row.city || "", products_supplied: row.products_supplied || "",
+        actorId: user.id,
+      });
+      if (existing) updated++; else created++;
+    }
+    push("success", `Import complete — ${created} created, ${updated} updated`);
     load();
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={() => setEdit({})}><Plus size={15} /> Add Supplier</Button>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Total Suppliers" value={String(suppliers.length)} hint="Registered Suppliers" icon={<Truck size={18} />} tone="green" />
+        <StatCard label="Total Purchases" value={money(totalPurchasesThisMonth)} hint="This Month" icon={<ReceiptText size={18} />} />
+        <StatCard label="Outstanding Payable" value={money(totalOutstanding)} icon={<HandCoins size={18} />} tone="danger" />
+        <StatCard label="Advance Payments" value={money(totalAdvance)} hint="Paid in Advance" icon={<TrendingUp size={18} />} tone="gold" />
       </div>
-      <DataTable
-        keyField={(r) => r.id}
-        rows={rows}
-        columns={[
-          { header: "Name", render: (r) => r.name },
-          { header: "Contact Person", render: (r) => r.contact_person || "—" },
-          { header: "Phone", render: (r) => r.phone || "—" },
-          { header: "City", render: (r) => r.city || "—" },
-          { header: "Category", render: (r) => r.category || "—" },
-          { header: "Payable", render: (r) => <span className={r.balance > 0 ? "font-medium text-red-600" : ""}>{money(r.balance)}</span> },
-          { header: "", render: (r) => (
-            <div className="flex gap-2">
-              <button className="text-xs font-medium text-brand-green-700 hover:underline" onClick={() => setEdit(r)}>Edit</button>
-              <button className="text-xs font-medium text-stone-500 hover:underline" onClick={() => setLedgerFor(r)}>Ledger</button>
-            </div>
-          ) },
-        ]}
-      />
-      {edit && (
-        <Modal title={edit.id ? "Edit Supplier" : "Add Supplier"} onClose={() => setEdit(null)} wide>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Supplier Name" value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
-            <Field label="Contact Person" value={edit.contact_person || ""} onChange={(e) => setEdit({ ...edit, contact_person: e.target.value })} />
-            <Field label="Phone" value={edit.phone || ""} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} />
-            <Field label="WhatsApp" value={edit.whatsapp || ""} onChange={(e) => setEdit({ ...edit, whatsapp: e.target.value })} />
-            <Field label="City" value={edit.city || ""} onChange={(e) => setEdit({ ...edit, city: e.target.value })} />
-            <Field label="Category" value={edit.category || ""} onChange={(e) => setEdit({ ...edit, category: e.target.value })} placeholder="Fertilizer, Grains…" />
-            {!edit.id && <Field label="Opening Payable" type="number" value={edit.opening_balance ?? 0} onChange={(e) => setEdit({ ...edit, opening_balance: Number(e.target.value) })} />}
-            <div className="sm:col-span-2"><TextAreaField label="Address" value={edit.address || ""} onChange={(e) => setEdit({ ...edit, address: e.target.value })} /></div>
-            <div className="sm:col-span-2"><TextAreaField label="Notes" value={edit.notes || ""} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} /></div>
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button onClick={() => setEdit(null)}>Cancel</Button>
-            <Button variant="primary" onClick={save}>Save Supplier</Button>
-          </div>
-        </Modal>
-      )}
-      {ledgerFor && <SupplierLedgerModal supplier={ledgerFor} onClose={() => setLedgerFor(null)} />}
-    </div>
-  );
-}
 
-function SupplierLedgerModal({ supplier, onClose }: { supplier: Supplier; onClose: () => void }) {
-  const [rows, setRows] = useState<Array<{ id: number; type: string; direction: number; amount: number; reference: string; note: string; created_at: string }>>([]);
-  useEffect(() => { api.suppliersLedger(supplier.id).then((r) => setRows(r as typeof rows)); }, [supplier.id]);
-  return (
-    <Modal title={`Ledger — ${supplier.name}`} onClose={onClose} wide>
-      <div className="mb-3 flex justify-between rounded-md bg-stone-50 px-3 py-2 text-sm">
-        <span>Opening Payable</span><span className="font-medium">{money(supplier.opening_balance)}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input className="input pl-9" placeholder="Search supplier by name, phone or NTN…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        <select className="input w-auto" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="">All Categories</option>
+          {categories.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <Button onClick={() => { setQuery(""); setCategoryFilter(""); }}><RotateCcw size={14} /> Reset</Button>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button onClick={importCsv}><Upload size={14} /> Import (CSV)</Button>
+          <Button onClick={exportCsv}><Download size={14} /> Export</Button>
+          <Button variant="primary" onClick={resetForm}><Plus size={15} /> Add Supplier</Button>
+        </div>
       </div>
-      <DataTable
-        keyField={(r) => r.id}
-        rows={rows}
-        columns={[
-          { header: "Date", render: (r) => formatDateTime(r.created_at) },
-          { header: "Type", render: (r) => r.type.replace(/_/g, " ") },
-          { header: "Reference", render: (r) => r.reference },
-          { header: "Note", render: (r) => r.note },
-          { header: "Amount", render: (r) => <span className={r.direction > 0 ? "text-red-600" : "text-brand-green-700"}>{r.direction > 0 ? "+" : "-"}{money(r.amount)}</span> },
-        ]}
-      />
-      <div className="mt-3 flex justify-between rounded-md bg-brand-green-50 px-3 py-2 text-sm font-semibold">
-        <span>Outstanding Payable</span><span>{money(supplier.balance)}</span>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+        <div className="card">
+          <DataTable
+            keyField={(r) => r.id}
+            rows={rows}
+            pageSize={20}
+            columns={[
+              { header: "Supplier Name", render: (r) => r.name },
+              { header: "Contact Person", render: (r) => r.contact_person || "—" },
+              { header: "Phone", render: (r) => r.phone || "—" },
+              { header: "Address / Location", render: (r) => r.city || "—" },
+              { header: "Products Supplied", render: (r) => r.products_supplied || "—" },
+              { header: "Outstanding", render: (r) => <span className={r.balance > 0 ? "font-medium text-red-600" : ""}>{money(r.balance)}</span> },
+              { header: "Action", render: (r) => (
+                <div className="flex gap-2">
+                  <button className="text-stone-400 hover:text-brand-green-700" title="View / Edit" onClick={() => editRow(r)}><Building2 size={14} /></button>
+                  <button className="text-stone-400 hover:text-brand-green-700" title="Ledger" onClick={() => (onOpenLedger?.(r.id), onNavigate?.("supplierLedger"))}><BookText size={14} /></button>
+                  <button className="text-stone-400 hover:text-red-600" title="Deactivate" onClick={() => deactivate(r)}><Trash2 size={14} /></button>
+                </div>
+              ) },
+            ]}
+          />
+        </div>
+
+        <div className="card space-y-3">
+          {draft.id ? (
+            <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-green-100 text-sm font-semibold text-brand-green-700">
+                {(draft.name || "?").slice(0, 2).toUpperCase()}
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-brand-navy-900">{draft.name}</p>
+                <p className="text-xs text-stone-400">{draft.category || "Supplier"} · {draft.payment_term_days ? `${draft.payment_term_days} day terms` : "No credit term set"}</p>
+              </div>
+            </div>
+          ) : (
+            <h3 className="text-sm font-semibold text-brand-navy-900">Add Supplier</h3>
+          )}
+
+          {draft.id && stats && (
+            <div className="grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="rounded-md bg-stone-50 p-2"><p className="text-stone-400">Total Purchases</p><p className="font-semibold">{money(stats.totalPurchases)}</p></div>
+              <div className="rounded-md bg-stone-50 p-2"><p className="text-stone-400">Outstanding</p><p className="font-semibold">{money(draft.balance)}</p></div>
+              <div className="rounded-md bg-stone-50 p-2"><p className="text-stone-400">Advance Paid</p><p className="font-semibold">{money(Math.max(0, -(draft.balance || 0)))}</p></div>
+              <div className="rounded-md bg-stone-50 p-2"><p className="text-stone-400">Total Invoices</p><p className="font-semibold">{stats.totalInvoices}</p></div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Supplier Name *" value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <Field label="Contact Person" value={draft.contact_person || ""} onChange={(e) => setDraft({ ...draft, contact_person: e.target.value })} />
+            <Field label="Phone" value={draft.phone || ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+            <Field label="WhatsApp" value={draft.whatsapp || ""} onChange={(e) => setDraft({ ...draft, whatsapp: e.target.value })} />
+            <Field label="NTN" value={draft.ntn || ""} onChange={(e) => setDraft({ ...draft, ntn: e.target.value })} />
+            <Field label="Payment Term (days)" type="number" value={draft.payment_term_days ?? 0} onChange={(e) => setDraft({ ...draft, payment_term_days: Number(e.target.value) })} />
+            <Field label="City" value={draft.city || ""} onChange={(e) => setDraft({ ...draft, city: e.target.value })} />
+            <Field label="Category" value={draft.category || ""} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="Fertilizer, Grains…" />
+            <Field label="Products Supplied" value={draft.products_supplied || ""} onChange={(e) => setDraft({ ...draft, products_supplied: e.target.value })} placeholder="Wheat, Maida, Bran" />
+            {!draft.id && <Field label="Opening Payable" type="number" value={draft.opening_balance ?? 0} onChange={(e) => setDraft({ ...draft, opening_balance: Number(e.target.value) })} />}
+          </div>
+          <TextAreaField label="Address" value={draft.address || ""} onChange={(e) => setDraft({ ...draft, address: e.target.value })} />
+
+          <div className="flex gap-2">
+            <Button onClick={resetForm}><RotateCcw size={14} /> Reset</Button>
+            <Button variant="primary" className="flex-1" onClick={save}><Save size={14} /> Save Supplier</Button>
+          </div>
+
+          {draft.id && recentTx.length > 0 && (
+            <div className="border-t border-stone-100 pt-2">
+              <div className="mb-1 flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Recent Transactions</h4>
+                <button className="text-xs text-brand-green-700 hover:underline" onClick={() => (onOpenLedger?.(draft.id!), onNavigate?.("supplierLedger"))}>View All →</button>
+              </div>
+              {recentTx.map((t) => (
+                <div key={t.id} className="flex justify-between py-0.5 text-xs">
+                  <span className="text-stone-500">{formatDate(t.created_at)} · {t.type.replace(/_/g, " ")}</span>
+                  <span className={t.direction > 0 ? "text-red-600" : "text-brand-green-700"}>{t.direction > 0 ? "+" : "-"}{money(t.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {draft.id && (
+            <div className="flex flex-wrap gap-2 border-t border-stone-100 pt-3">
+              <Button onClick={() => push("info", "Not connected — WhatsApp sending isn't set up yet (see Settings > Integrations)")}><MessageCircle size={14} /> WhatsApp</Button>
+              <Button onClick={() => push("info", "Not connected — Email sending isn't set up yet (see Settings > Integrations)")}><Mail size={14} /> Email</Button>
+            </div>
+          )}
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 }
