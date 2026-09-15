@@ -449,6 +449,60 @@ inert form fields:
   a PO is selected (From Purchase Order, showing real remaining quantities),
   and the Reprint action all render correctly with zero console errors.
 
+## Phase H — Sales/Purchase Returns v2 (this pass, real, tested)
+
+- **Real Refund vs Exchange**, not just a label. Refund keeps the existing
+  behavior (reduces the customer's receivable, then optionally refunds
+  cash). Exchange computes a real **Return Credit** from the returned
+  items and lets the cashier build a replacement-products cart right on
+  the same screen (search, add, edit quantity/rate) with a live summary —
+  Exchange Subtotal, Return Credit Applied, and either an **Amount Due**
+  (exchange worth more) or a **Remaining Store Credit** (exchange worth
+  less, shown honestly rather than silently discarded). Submitting posts
+  two linked real transactions — `salesReturns:create` then `sales:create`
+  with the credit applied as the new sale's `discount` — the same
+  two-real-calls pattern Phase F's Hold/Resume already established, so
+  each half stays atomic and inspectable on its own rather than needing a
+  new bespoke "exchange" transaction type.
+- **Batch/lot reference on returns** — both Sales and Purchase Returns now
+  expose the optional free-text `batch_ref` field the schema has carried
+  since Phase 0 (Section 47's decision: no real batch-costing, just a
+  reference) once a return quantity is entered for a line.
+- **Automatic credit notes, now visible** — `purchase_returns.credit_note_no`
+  was already generated on every purchase return (real, since Phase 0) but
+  no UI ever showed it. Purchase Returns now displays it in the history
+  table and in a dedicated "Credit Note Issued" confirmation panel after
+  saving, naming the note number, the amount, and confirming the supplier's
+  payable was reduced.
+- **Real history views** — new `salesReturns:list`/`purchaseReturns:list`
+  handlers (joining the original invoice number, customer/supplier name,
+  and — for purchase returns — the credit note number) back a proper
+  history table on both pages, matching every other v2 page's history +
+  form layout instead of a bare lookup form with no record of past returns.
+- **Still instant-post** (Section-consistent with every other phase): no
+  approval workflow was added — a return posts the moment it's saved, same
+  as before.
+- **Scope decision**: when an exchange's replacement items are worth less
+  than the return credit, the leftover is shown to the cashier as
+  "Remaining Store Credit" but is not automatically banked as a standing
+  customer credit balance or auto-refunded — the cashier settles it
+  separately (cash refund, or leaves it for the customer's next visit,
+  manually). A real running store-credit ledger is a bigger feature than
+  this phase's scope; documented here rather than silently rounding it away.
+- Verified with `scripts/test-phaseH.cjs` (17 assertions: correct return
+  numbering, refunded stock actually returning to inventory, `refund_cash`
+  recording the real refunded amount, the Exchange return's credit
+  computing correctly and correctly capping the linked sale's discount so
+  it never goes negative, over-returning still rejected, the automatic
+  credit note number and its real reduction of the supplier's payable, and
+  both new `:list` endpoints joining the right invoice/customer/supplier/
+  credit-note data) — all pass, plus all eight earlier suites re-run
+  clean. Visual smoke test confirms the Sales Returns history with Refund/
+  Exchange badges, the live Exchange builder (return credit → exchange
+  cart → amount due), the Purchase Returns history with the credit note
+  column, and the post-save "Credit Note Issued" panel all render
+  correctly with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -483,12 +537,12 @@ These are named explicitly so nobody mistakes silence for "it exists":
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
-→ **G** Purchases v2 — all done (see sections above). Next: **H** Returns
-v2 (Refund vs Exchange, batch_ref, credit notes) → **I** Cash Management v2
-→ **J** Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M**
-Users & Permissions v2 (real matrix enforcement) → **N** Invoice/Printer
-Settings + 58mm dual-token + real barcode rendering + receipt polish to
-match the physical mockup.
+→ **G** Purchases v2 → **H** Returns v2 — all done (see sections above).
+Next: **I** Cash Management v2 (register redesign, bank transactions,
+petty cash, cash transfer) → **J** Expenses v2 → **K** Dashboard v2 →
+**L** Reports suite → **M** Users & Permissions v2 (real matrix
+enforcement) → **N** Invoice/Printer Settings + 58mm dual-token + real
+barcode rendering + receipt polish to match the physical mockup.
 
 ## Still not started after Phase 0/A–N
 

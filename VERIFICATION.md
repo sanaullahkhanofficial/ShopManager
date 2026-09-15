@@ -175,6 +175,28 @@ any other network resource.
   render correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase H checks (this session)
+- `scripts/test-phaseH.cjs` (`npm run test:phaseH`) — 17 assertions: sales
+  return numbering, refunded stock actually returning to inventory,
+  `refund_cash` recording the real cash amount, the Exchange return's
+  credit computing correctly and correctly capping the linked exchange
+  sale's discount (never pushing its total negative), over-returning still
+  rejected, the automatic purchase-return credit note number and its real
+  reduction of the supplier's payable, and both new `salesReturns:list`/
+  `purchaseReturns:list` endpoints correctly joining the original invoice,
+  customer/supplier name, return type, and credit note number. All passed.
+  The eight earlier suites (`test-accounting`, `test-phase0`, `test-phaseB`
+  through `test-phaseG`) were re-run against the Phase H schema and still
+  pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed with realistic sales/
+  purchase/return history): the Sales Returns history table with Refund/
+  Exchange type badges, the live Exchange builder (Return Credit → replacement
+  product cart → Exchange Subtotal/Return Credit Applied/Amount Due), the
+  Purchase Returns history table showing the credit note number column, and
+  the post-save "Credit Note Issued" confirmation panel all render
+  correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

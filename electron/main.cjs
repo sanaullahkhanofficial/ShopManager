@@ -885,6 +885,10 @@ function registerIpc() {
   ipcMain.handle("heldSales:delete", (_, id) => { db.prepare("DELETE FROM held_sales WHERE id=?").run(id); return true; });
 
   // ---- Sales Returns (Refund or Exchange; Section 22 — instant post) --------
+  ipcMain.handle("salesReturns:list", () => db.prepare(`
+    SELECT sr.*, s.invoice_no original_invoice, COALESCE(c.shop_name,c.name) customer_name
+    FROM sales_returns sr JOIN sales s ON s.id=sr.sale_id LEFT JOIN customers c ON c.id=sr.customer_id
+    ORDER BY sr.id DESC LIMIT 200`).all());
   ipcMain.handle("salesReturns:create", (_, x) => {
     const tx = db.transaction(v => {
       const sale = db.prepare("SELECT * FROM sales WHERE id=?").get(v.sale_id);
@@ -1013,6 +1017,10 @@ function registerIpc() {
   });
 
   // ---- Purchase Returns (with credit note; Section 23 — instant post) -------
+  ipcMain.handle("purchaseReturns:list", () => db.prepare(`
+    SELECT pr.*, p.invoice_no original_invoice, s.name supplier_name
+    FROM purchase_returns pr JOIN purchases p ON p.id=pr.purchase_id LEFT JOIN suppliers s ON s.id=pr.supplier_id
+    ORDER BY pr.id DESC LIMIT 200`).all());
   ipcMain.handle("purchaseReturns:create", (_, x) => {
     const tx = db.transaction(v => {
       const purchase = db.prepare("SELECT * FROM purchases WHERE id=?").get(v.purchase_id);

@@ -202,6 +202,7 @@ export interface PurchaseItem {
   quantity: number;
   rate: number;
   amount: number;
+  returned_quantity: number;
 }
 
 export interface Expense {
@@ -346,6 +347,35 @@ export interface LedgerEntry {
   reference: string;
   note: string;
   payment_method?: string;
+  created_at: string;
+}
+
+export type ReturnType = "Refund" | "Exchange";
+
+export interface SalesReturn {
+  id: number;
+  return_no: string;
+  sale_id: number;
+  original_invoice: string;
+  customer_id: number | null;
+  customer_name?: string;
+  return_type: ReturnType;
+  total: number;
+  reason: string;
+  refund_cash: number;
+  created_at: string;
+}
+
+export interface PurchaseReturn {
+  id: number;
+  return_no: string;
+  purchase_id: number;
+  original_invoice: string;
+  supplier_id: number | null;
+  supplier_name?: string;
+  total: number;
+  reason: string;
+  credit_note_no: string;
   created_at: string;
 }
 

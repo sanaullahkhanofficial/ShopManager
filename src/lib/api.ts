@@ -68,7 +68,9 @@ export const api = {
   heldSalesGet: (id: number) => invoke("heldSales:get", id),
   heldSalesDelete: (id: number) => invoke("heldSales:delete", id),
 
+  salesReturnsList: () => invoke("salesReturns:list"),
   salesReturnsCreate: (x: Record<string, unknown>) => invoke("salesReturns:create", x),
+  purchaseReturnsList: () => invoke("purchaseReturns:list"),
   purchaseReturnsCreate: (x: Record<string, unknown>) => invoke("purchaseReturns:create", x),
 
   purchasesList: () => invoke("purchases:list"),
