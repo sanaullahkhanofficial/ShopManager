@@ -346,6 +346,66 @@ inert form fields:
   (correct per-status actions), and the New Purchase Order modal all
   render correctly with zero console errors.
 
+## Phase F — POS v2 (this pass, real, tested)
+
+- **Category sidebar** — a real column on the POS page (not a dropdown)
+  driven by `categories:list`, filtering the product grid/list; "All
+  Products" stays the default so nothing is hidden behind a category by
+  surprise.
+- **Grid/List view toggle** for the product listing, matching the reference
+  design's two layouts — both share the same `addToCart`/pricing logic, so
+  Retail/Wholesale mode and stock limits behave identically in either view.
+- **Barcode-scan behavior** — pressing Enter in the search box does an exact
+  SKU/barcode match and adds the product straight to the cart, so a USB
+  barcode scanner (which types the code then sends Enter) "just works"
+  without a separate scan mode.
+- **F-key shortcuts**, scoped to the POS page via a page-level `keydown`
+  listener with `preventDefault()` so the browser's own F-key behavior
+  never fires underneath: **F2** new sale (clear cart, focus search), **F3**
+  Hold Bill, **F4** Recent Bills, **F5** Quotation, **F6** focus product
+  search, **F8** re-print the last receipt, **F9** complete the sale. A
+  visible key-hint row under the search bar documents them in the UI itself.
+- **Quick-tender buttons** (+100/+500/+1000/+5000/+10000, plus an "Exact"
+  button) add straight onto the Paid Amount field; once paid exceeds the
+  total the summary panel swaps the "Remaining" row for a real **Change**
+  row instead of showing a nonsensical negative remaining balance.
+- **Real Hold Bill / Resume and Quotation workflow** — a new `held_sales`
+  table stores a cart **snapshot** (`items_json`, customer, mode, discount)
+  that touches neither stock nor any ledger until it's resumed. Hold Bill
+  (F3) and Quotation (F5) both go through the same `heldSales:create`
+  handler, numbered independently (`HOLD-YYYYMMDD-####` / `QT-…`) via the
+  existing collision-free counter. A "Held Bills / Quotations" modal
+  (opened from the cart panel or F4→Recent for sales, a separate icon for
+  held/quotations) lists open ones with a **Resume** action that repopulates
+  the cart and deletes the held row — only the eventual Save & Print runs
+  the real, atomic sale transaction, so a resumed quotation still goes
+  through every stock/ledger/cash check a normal sale does.
+- **Recent Bills (F4)** — the last 10 real sales with a one-click
+  **Reprint** that re-fetches the sale via `sales:get` and feeds it back
+  into the same `ReceiptPreview`/`window.print()` path as a fresh sale, so
+  a reprinted receipt is guaranteed to match what was actually saved (no
+  separately-maintained "reprint" template that could drift).
+- **Deliberately not built**: a fabricated "next invoice number" preview
+  before saving (real numbering is assigned atomically server-side at save
+  time; showing a guess risks it not matching the real number the moment
+  two terminals are in play) and the reference mockup's decorative gear
+  icon next to "Current Sale" (no real action was defined for it, and this
+  project's standing rule is no decorative/dead controls).
+- Verified with `scripts/test-phaseF.cjs` (15 assertions: `heldSales:create`
+  rejects an empty cart; holding a bill leaves stock and the customer ledger
+  completely untouched; `heldSales:list` both returns and correctly filters
+  by HOLD vs QUOTATION type and joins the customer name;
+  `heldSales:get` parses `items_json` back into a real array; the full
+  Resume flow — delete the held row, then run a real `sales:create` from its
+  snapshot — actually decrements stock only at that point; and HOLD/QUOTATION
+  get independent invoice-style numbering) — all pass, plus all six earlier
+  suites re-run clean, confirming nothing regressed. Visual smoke test
+  (Playwright, stubbed `window.api`, same approach as every earlier phase)
+  confirms the category sidebar, grid/list toggle, F-key hint row, cart with
+  quick-tender applied, the Held Bills modal, the Quotations tab within it,
+  and the Recent Bills modal (with a working Reprint button) all render
+  correctly against realistic seeded data with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -378,14 +438,14 @@ These are named explicitly so nobody mistakes silence for "it exists":
 ## Page-level phases (A–N), queued as tasks, next up
 
 Redesigning every screen against the 19 reference images, in this order:
-**A** shell (hero topbar, sidebar submenus, footer, fonts, notifications,
-quick actions) → **B** Settings v2 → **C** Products/Inventory v2 → **D**
+**A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
-(category sidebar, F-keys, real Hold/Resume/Quotation) → **G** Purchases v2
-→ **H** Returns v2 → **I** Cash Management v2 → **J** Expenses v2 → **K**
-Dashboard v2 → **L** Reports suite → **M** Users & Permissions v2 (real
-matrix enforcement) → **N** Invoice/Printer Settings + 58mm dual-token +
-real barcode rendering + receipt polish to match the physical mockup.
+— all done (see sections above). Next: **G** Purchases v2 (converged
+layout, live invoice preview, dual print, PO linkage) → **H** Returns v2 →
+**I** Cash Management v2 → **J** Expenses v2 → **K** Dashboard v2 → **L**
+Reports suite → **M** Users & Permissions v2 (real matrix enforcement) →
+**N** Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
+receipt polish to match the physical mockup.
 
 ## Still not started after Phase 0/A–N
 

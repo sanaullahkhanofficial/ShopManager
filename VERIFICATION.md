@@ -130,6 +130,30 @@ any other network resource.
   correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase F checks (this session)
+- `scripts/test-phaseF.cjs` (`npm run test:phaseF`) — 15 assertions:
+  `heldSales:create` rejects an empty cart; holding a bill (HOLD or
+  QUOTATION) leaves stock and the customer ledger completely untouched;
+  `heldSales:list` returns and correctly filters by type and joins the
+  customer name; `heldSales:get` parses `items_json` back into a real
+  array and preserves discount; the Resume flow (delete the held row, then
+  run a real `sales:create` from its snapshot) only decrements stock once
+  the sale is actually completed; and HOLD/QUOTATION get independent
+  `HOLD-YYYYMMDD-####`/`QT-YYYYMMDD-####` numbering. All passed. The six
+  earlier suites (`test-accounting`, `test-phase0`, `test-phaseB` through
+  `test-phaseE`) were re-run against the Phase F schema and still pass
+  unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed with realistic
+  products/categories/customers/held-sales/recent-sales data, same approach
+  as every earlier phase): the POS page's new category sidebar (filtering
+  correctly to just the selected category's products), grid/list view
+  toggle, F-key hint row, cart with quick-tender amounts applied and the
+  Change row appearing once paid exceeds the total, the Held Bills modal
+  (Held Bills / Quotations tabs, Resume/Delete actions), and the Recent
+  Bills modal (with a working Reprint action) all render correctly with
+  zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

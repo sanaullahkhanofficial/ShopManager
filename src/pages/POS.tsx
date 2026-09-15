@@ -1,19 +1,24 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Minus, Plus, Printer, Search, Trash2 } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Grid2x2, List, Minus, Pause, Plus, Printer, Receipt, Search, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { money } from "../lib/format";
 import { Button } from "../components/ui/Button";
 import { SelectField } from "../components/ui/Field";
+import { Modal } from "../components/ui/Modal";
 import { ReceiptPreview, type ReceiptData } from "../components/ReceiptPreview";
 import { useToast } from "../components/ui/Toast";
-import type { AuthUser, CartLine, Customer, PaymentMethod, Product, SaleMode, Settings } from "../types";
+import type { AuthUser, CartLine, Category, Customer, HeldSale, PaymentMethod, Product, Sale, SaleMode, Settings } from "../types";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "Bank Transfer", "JazzCash", "Easypaisa", "Cheque", "Credit", "Partial"];
+const QUICK_TENDER = [100, 500, 1000, 5000, 10000];
 
 export function POS({ user, settings }: { user: AuthUser; settings: Settings }) {
   const { push } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [categoryId, setCategoryId] = useState<number | "all">("all");
+  const [view, setView] = useState<"grid" | "list">("grid");
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<SaleMode>("Retail");
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -23,10 +28,17 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
   const [paid, setPaid] = useState(0);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [busy, setBusy] = useState(false);
+  const [heldOpen, setHeldOpen] = useState(false);
+  const [heldType, setHeldType] = useState<"HOLD" | "QUOTATION">("HOLD");
+  const [held, setHeld] = useState<HeldSale[]>([]);
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [recentSales, setRecentSales] = useState<Sale[]>([]);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     api.productsList().then((p) => setProducts(p as Product[]));
     api.customersList().then((c) => setCustomers(c as Customer[]));
+    api.categoriesList().then((c) => setCategories((c as Category[]).filter((x) => x.status === "active")));
   };
   useEffect(load, []);
 
@@ -38,12 +50,14 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
   }, [receipt]);
 
   const filtered = useMemo(() => {
+    let list = products;
+    if (categoryId !== "all") list = list.filter((p) => p.category_id === categoryId);
     const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) =>
+    if (!q) return list;
+    return list.filter((p) =>
       p.name.toLowerCase().includes(q) || p.name_urdu.includes(query.trim()) || (p.sku || "").toLowerCase().includes(q) || (p.barcode || "").toLowerCase().includes(q)
     );
-  }, [products, query]);
+  }, [products, query, categoryId]);
 
   function priceFor(p: Product) {
     return mode === "Wholesale" ? p.wholesale_price : p.retail_price;
@@ -68,10 +82,27 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
   const subtotal = cart.reduce((a, l) => a + l.quantity * l.rate, 0);
   const total = Math.max(0, subtotal - discount);
   const remaining = Math.max(0, total - paid);
+  const changeAmount = Math.max(0, paid - total);
   const selectedCustomer = customers.find((c) => String(c.id) === customerId);
 
   function clearCart() {
     setCart([]); setDiscount(0); setPaid(0); setCustomerId(""); setPaymentMethod("Cash");
+  }
+
+  function focusSearch() {
+    searchRef.current?.focus();
+    searchRef.current?.select();
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const exact = products.find((p) => (p.barcode || "").toLowerCase() === q || (p.sku || "").toLowerCase() === q);
+    if (exact) {
+      addToCart(exact);
+      setQuery("");
+    }
   }
 
   async function saveAndPrint() {
@@ -109,13 +140,118 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
     }
   }
 
+  async function holdBill(type: "HOLD" | "QUOTATION") {
+    if (!cart.length) { push("error", "Cart is empty"); return; }
+    try {
+      const result = await api.heldSalesCreate({
+        type, customer_id: customerId ? Number(customerId) : null, mode, discount,
+        items: cart, actorId: user.id,
+      }) as { hold_no: string };
+      push("success", `${type === "QUOTATION" ? "Quotation" : "Bill"} ${result.hold_no} saved`);
+      clearCart();
+    } catch (e) {
+      push("error", e instanceof Error ? e.message : "Unable to hold bill");
+    }
+  }
+
+  async function openHeldList(type: "HOLD" | "QUOTATION") {
+    setHeldType(type);
+    const rows = (await api.heldSalesList(type)) as HeldSale[];
+    setHeld(rows);
+    setHeldOpen(true);
+  }
+
+  async function resumeHeld(h: HeldSale) {
+    if (cart.length && !window.confirm("Current cart is not empty. Replace it with this held bill?")) return;
+    const full = (await api.heldSalesGet(h.id)) as HeldSale | null;
+    if (!full) { push("error", "Held bill not found"); return; }
+    setCart(full.items);
+    setCustomerId(full.customer_id ? String(full.customer_id) : "");
+    setMode(full.mode);
+    setDiscount(full.discount);
+    await api.heldSalesDelete(h.id);
+    setHeldOpen(false);
+    push("success", `${full.hold_no} resumed`);
+  }
+
+  async function deleteHeld(h: HeldSale) {
+    if (!window.confirm(`Delete ${h.hold_no}?`)) return;
+    await api.heldSalesDelete(h.id);
+    setHeld((v) => v.filter((x) => x.id !== h.id));
+  }
+
+  async function openRecent() {
+    const rows = (await api.salesList()) as Sale[];
+    setRecentSales(rows.slice(0, 10));
+    setRecentOpen(true);
+  }
+
+  async function reprint(saleId: number) {
+    const data = (await api.salesGet(saleId)) as { sale: Sale & { customer_name?: string; customer_phone?: string; cashier_id?: number }; items: Array<{ product_name: string; quantity: number; unit: string; rate: number; amount: number }> };
+    setReceipt({
+      invoiceNo: data.sale.invoice_no,
+      date: data.sale.sale_date,
+      cashier: user.display_name,
+      customerName: data.sale.customer_name,
+      customerPhone: data.sale.customer_phone,
+      mode: data.sale.mode,
+      items: data.items.map((it) => ({ name: it.product_name, qty: it.quantity, unit: it.unit, rate: it.rate, amount: it.amount })),
+      subtotal: data.sale.subtotal, discount: data.sale.discount, total: data.sale.total,
+      paymentMethod: data.sale.payment_method, paid: data.sale.paid, remaining: data.sale.balance,
+    });
+    setRecentOpen(false);
+  }
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (["F2", "F3", "F4", "F5", "F6", "F8", "F9"].includes(e.key)) e.preventDefault();
+      switch (e.key) {
+        case "F2": clearCart(); focusSearch(); break;
+        case "F3": holdBill("HOLD"); break;
+        case "F4": openRecent(); break;
+        case "F5": holdBill("QUOTATION"); break;
+        case "F6": focusSearch(); break;
+        case "F8": if (receipt) window.print(); break;
+        case "F9": if (!busy) saveAndPrint(); break;
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, customerId, discount, mode, paymentMethod, paid, receipt, busy]);
+
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[160px_1fr_380px]">
+      <div className="card flex flex-row gap-1 overflow-x-auto p-2 xl:flex-col xl:overflow-visible">
+        <button
+          onClick={() => setCategoryId("all")}
+          className={`whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium ${categoryId === "all" ? "bg-brand-green-600 text-white" : "text-stone-600 hover:bg-stone-50"}`}
+        >
+          All Products
+        </button>
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCategoryId(c.id)}
+            className={`whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium ${categoryId === c.id ? "bg-brand-green-600 text-white" : "text-stone-600 hover:bg-stone-50"}`}
+          >
+            {c.name}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[220px]">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-            <input className="input pl-9" placeholder="Search product — English, اردو, SKU or barcode" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input
+              ref={searchRef}
+              className="input pl-9"
+              placeholder="Search or scan — English, اردو, SKU or barcode (Enter to scan-add)"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
           </div>
           <div className="flex overflow-hidden rounded-md border border-stone-300">
             {(["Retail", "Wholesale"] as SaleMode[]).map((m) => (
@@ -124,27 +260,69 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
               </button>
             ))}
           </div>
+          <div className="flex overflow-hidden rounded-md border border-stone-300">
+            <button onClick={() => setView("grid")} className={`p-2 ${view === "grid" ? "bg-brand-green-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`} title="Grid view"><Grid2x2 size={15} /></button>
+            <button onClick={() => setView("list")} className={`p-2 ${view === "list" ? "bg-brand-green-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`} title="List view"><List size={15} /></button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              disabled={p.stock <= 0}
-              onClick={() => addToCart(p)}
-              className="flex flex-col items-start gap-0.5 rounded-card border border-stone-200 bg-white p-3 text-left shadow-sm transition hover:border-brand-green-400 hover:shadow disabled:opacity-40"
-            >
-              <span className="text-sm font-semibold text-brand-navy-900">{p.name}</span>
-              <span className="text-xs text-stone-400" dir="rtl">{p.name_urdu}</span>
-              <span className="text-xs text-stone-500">{p.package_size} {p.package_unit}</span>
-              <span className="mt-1 text-sm font-medium text-brand-green-700">{money(priceFor(p))}</span>
-              <span className="text-[11px] text-stone-400">{p.stock} {p.package_unit} in stock</span>
-            </button>
-          ))}
+
+        <div className="flex flex-wrap gap-1 text-[11px] text-stone-400">
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F2 New</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F3 Hold</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F4 Recent</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F5 Quote</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F6 Search</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F8 Print</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F9 Complete</span>
         </div>
+
+        {view === "grid" ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                disabled={p.stock <= 0}
+                onClick={() => addToCart(p)}
+                className="flex flex-col items-start gap-0.5 rounded-card border border-stone-200 bg-white p-3 text-left shadow-sm transition hover:border-brand-green-400 hover:shadow disabled:opacity-40"
+              >
+                <span className="text-sm font-semibold text-brand-navy-900">{p.name}</span>
+                <span className="text-xs text-stone-400" dir="rtl">{p.name_urdu}</span>
+                <span className="text-xs text-stone-500">{p.package_size} {p.package_unit}</span>
+                <span className="mt-1 text-sm font-medium text-brand-green-700">{money(priceFor(p))}</span>
+                <span className="text-[11px] text-stone-400">{p.stock} {p.package_unit} in stock</span>
+              </button>
+            ))}
+            {filtered.length === 0 && <p className="col-span-full py-8 text-center text-sm text-stone-400">No products match</p>}
+          </div>
+        ) : (
+          <div className="card divide-y divide-stone-100 p-0">
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                disabled={p.stock <= 0}
+                onClick={() => addToCart(p)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-stone-50 disabled:opacity-40"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-brand-navy-900">{p.name} <span className="text-xs text-stone-400" dir="rtl">{p.name_urdu}</span></p>
+                  <p className="text-xs text-stone-500">{p.package_size} {p.package_unit} &middot; {p.stock} in stock</p>
+                </div>
+                <span className="whitespace-nowrap text-sm font-medium text-brand-green-700">{money(priceFor(p))}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && <p className="py-8 text-center text-sm text-stone-400">No products match</p>}
+          </div>
+        )}
       </div>
 
       <div className="card flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-brand-navy-900">Current Bill</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-brand-navy-900">Current Bill</h3>
+          <div className="flex gap-1">
+            <button onClick={() => openHeldList("HOLD")} className="rounded border border-stone-200 p-1.5 text-stone-500 hover:bg-stone-50" title="Held Bills (F3 to hold current)"><Pause size={14} /></button>
+            <button onClick={openRecent} className="rounded border border-stone-200 p-1.5 text-stone-500 hover:bg-stone-50" title="Recent Bills (F4)"><Receipt size={14} /></button>
+          </div>
+        </div>
         <div className="max-h-64 space-y-2 overflow-y-auto">
           {cart.length === 0 && <p className="text-sm text-stone-400">Cart is empty</p>}
           {cart.map((l) => (
@@ -177,28 +355,93 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
         </label>
 
         {paymentMethod !== "Credit" && (
-          <label className="block">
-            <span className="label">Paid Amount</span>
-            <input type="number" min={0} max={total} className="input" value={paid} onChange={(e) => setPaid(Number(e.target.value))} />
-          </label>
+          <>
+            <label className="block">
+              <span className="label">Paid Amount</span>
+              <input type="number" min={0} className="input" value={paid} onChange={(e) => setPaid(Number(e.target.value))} />
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_TENDER.map((d) => (
+                <button key={d} type="button" onClick={() => setPaid((v) => v + d)} className="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50">
+                  +{d}
+                </button>
+              ))}
+              <button type="button" onClick={() => setPaid(total)} className="rounded-md border border-brand-green-300 bg-brand-green-50 px-2.5 py-1 text-xs font-medium text-brand-green-700 hover:bg-brand-green-100">
+                Exact
+              </button>
+            </div>
+          </>
         )}
 
         <div className="space-y-1 border-t border-stone-100 pt-2 text-sm">
           <div className="flex justify-between text-stone-500"><span>Subtotal</span><span>{money(subtotal)}</span></div>
           <div className="flex justify-between text-stone-500"><span>Discount</span><span>-{money(discount)}</span></div>
           <div className="flex justify-between text-base font-semibold text-brand-navy-900"><span>Grand Total</span><span>{money(total)}</span></div>
-          <div className="flex justify-between text-stone-500"><span>Remaining</span><span>{money(paymentMethod === "Credit" ? total : remaining)}</span></div>
+          {paymentMethod !== "Credit" && paid > total ? (
+            <div className="flex justify-between text-brand-green-700"><span>Change</span><span>{money(changeAmount)}</span></div>
+          ) : (
+            <div className="flex justify-between text-stone-500"><span>Remaining</span><span>{money(paymentMethod === "Credit" ? total : remaining)}</span></div>
+          )}
         </div>
 
         <div className="flex gap-2">
+          <Button className="flex-1" onClick={() => holdBill("HOLD")} disabled={!cart.length} title="Hold Bill (F3)">
+            <Pause size={15} /> Hold
+          </Button>
+          <Button className="flex-1" onClick={() => holdBill("QUOTATION")} disabled={!cart.length} title="Quotation (F5)">
+            <Receipt size={15} /> Quote
+          </Button>
+        </div>
+        <div className="flex gap-2">
           <Button className="flex-1" onClick={clearCart} disabled={!cart.length}>Clear</Button>
-          <Button variant="primary" className="flex-1" onClick={saveAndPrint} disabled={!cart.length || busy}>
+          <Button variant="primary" className="flex-1" onClick={saveAndPrint} disabled={!cart.length || busy} title="Complete Sale (F9)">
             <Printer size={15} /> Save &amp; Print
           </Button>
         </div>
       </div>
 
       {receipt && <ReceiptPreview data={receipt} settings={settings} />}
+
+      {heldOpen && (
+        <Modal title={heldType === "QUOTATION" ? "Quotations" : "Held Bills"} onClose={() => setHeldOpen(false)} wide>
+          <div className="mb-3 flex gap-2">
+            <button onClick={() => openHeldList("HOLD")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${heldType === "HOLD" ? "bg-brand-green-600 text-white" : "border border-stone-300 text-stone-600"}`}>Held Bills</button>
+            <button onClick={() => openHeldList("QUOTATION")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${heldType === "QUOTATION" ? "bg-brand-green-600 text-white" : "border border-stone-300 text-stone-600"}`}>Quotations</button>
+          </div>
+          <div className="max-h-96 space-y-2 overflow-y-auto">
+            {held.length === 0 && <p className="py-6 text-center text-sm text-stone-400">Nothing here yet</p>}
+            {held.map((h) => (
+              <div key={h.id} className="flex items-center justify-between gap-3 rounded-md border border-stone-200 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-navy-900">{h.hold_no} <span className="font-normal text-stone-400">&middot; {h.customer_name || "Walk-in"}</span></p>
+                  <p className="text-xs text-stone-500">{h.items.length} item(s) &middot; {h.mode} &middot; {new Date(h.created_at).toLocaleString()}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button variant="primary" onClick={() => resumeHeld(h)}>Resume</Button>
+                  <Button variant="danger" onClick={() => deleteHeld(h)}><Trash2 size={14} /></Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {recentOpen && (
+        <Modal title="Recent Bills" onClose={() => setRecentOpen(false)} wide>
+          <div className="max-h-96 space-y-2 overflow-y-auto">
+            {recentSales.length === 0 && <p className="py-6 text-center text-sm text-stone-400">No sales yet</p>}
+            {recentSales.map((s) => (
+              <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border border-stone-200 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-brand-navy-900">{s.invoice_no} <span className="font-normal text-stone-400">&middot; {s.customer_name || "Walk-in"}</span></p>
+                  <p className="text-xs text-stone-500">{money(s.total)} &middot; {s.payment_method} &middot; {new Date(s.sale_date).toLocaleString()}</p>
+                </div>
+                <Button onClick={() => reprint(s.id)}><Printer size={14} /> Reprint</Button>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

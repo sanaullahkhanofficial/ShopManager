@@ -63,6 +63,11 @@ export const api = {
   salesCreate: (x: Record<string, unknown>) => invoke("sales:create", x),
   salesVoid: (x: Record<string, unknown>) => invoke("sales:void", x),
 
+  heldSalesList: (type?: "HOLD" | "QUOTATION") => invoke("heldSales:list", type),
+  heldSalesCreate: (x: Record<string, unknown>) => invoke("heldSales:create", x),
+  heldSalesGet: (id: number) => invoke("heldSales:get", id),
+  heldSalesDelete: (id: number) => invoke("heldSales:delete", id),
+
   salesReturnsCreate: (x: Record<string, unknown>) => invoke("salesReturns:create", x),
   purchaseReturnsCreate: (x: Record<string, unknown>) => invoke("purchaseReturns:create", x),
 

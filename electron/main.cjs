@@ -139,6 +139,16 @@ function initDb() {
     FOREIGN KEY(po_id) REFERENCES po_orders(id), FOREIGN KEY(product_id) REFERENCES products(id)
   );
 
+  -- Held bills and quotations (Section 16/POS design): a cart snapshot that
+  -- hasn't touched stock, ledgers or cash yet — only Resume -> Complete Sale
+  -- runs the real sale transaction. items_json is a JSON array of
+  -- {product_id,name,name_urdu,unit,quantity,rate} snapshots.
+  CREATE TABLE IF NOT EXISTS held_sales(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, hold_no TEXT UNIQUE NOT NULL, type TEXT DEFAULT 'HOLD',
+    customer_id INTEGER, mode TEXT DEFAULT 'Retail', discount REAL DEFAULT 0, notes TEXT,
+    items_json TEXT NOT NULL, user_id INTEGER, created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS sales(
     id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_no TEXT UNIQUE NOT NULL, customer_id INTEGER, mode TEXT DEFAULT 'Retail',
     subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, tax REAL NOT NULL DEFAULT 0,
@@ -853,6 +863,26 @@ function registerIpc() {
     });
     return tx(x);
   });
+
+  // ---- Held bills & Quotations (F3/F5) -------------------------------------
+  ipcMain.handle("heldSales:list", (_, type) => db.prepare(`
+    SELECT h.*, COALESCE(c.shop_name,c.name) customer_name FROM held_sales h LEFT JOIN customers c ON c.id=h.customer_id
+    ${type ? "WHERE h.type=@type" : ""} ORDER BY h.id DESC`).all(type ? { type } : {}));
+  ipcMain.handle("heldSales:create", (_, x) => {
+    if (!x.items?.length) throw new Error("Cart is empty");
+    const type = x.type === "QUOTATION" ? "QUOTATION" : "HOLD";
+    const no = nextNo(type === "QUOTATION" ? "QT" : "HOLD");
+    db.prepare("INSERT INTO held_sales(hold_no,type,customer_id,mode,discount,notes,items_json,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
+      .run(no, type, x.customer_id || null, x.mode || "Retail", x.discount || 0, x.notes || "", JSON.stringify(x.items), x.actorId || null, now());
+    audit(x.actorId, type === "QUOTATION" ? "QUOTATION_CREATED" : "SALE_HELD", "held_sale", null, { hold_no: no });
+    return { hold_no: no };
+  });
+  ipcMain.handle("heldSales:get", (_, id) => {
+    const row = db.prepare("SELECT h.*, COALESCE(c.shop_name,c.name) customer_name FROM held_sales h LEFT JOIN customers c ON c.id=h.customer_id WHERE h.id=?").get(id);
+    if (!row) return null;
+    return { ...row, items: JSON.parse(row.items_json) };
+  });
+  ipcMain.handle("heldSales:delete", (_, id) => { db.prepare("DELETE FROM held_sales WHERE id=?").run(id); return true; });
 
   // ---- Sales Returns (Refund or Exchange; Section 22 — instant post) --------
   ipcMain.handle("salesReturns:create", (_, x) => {

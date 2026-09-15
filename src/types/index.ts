@@ -159,6 +159,20 @@ export interface Sale {
   created_at: string;
 }
 
+export interface SaleItem {
+  id: number;
+  sale_id: number;
+  product_id: number;
+  product_name?: string;
+  name_urdu?: string;
+  quantity: number;
+  unit: string;
+  rate: number;
+  amount: number;
+  cost: number;
+  returned_quantity: number;
+}
+
 export interface Purchase {
   id: number;
   invoice_no: string;
@@ -315,6 +329,19 @@ export interface LedgerEntry {
   reference: string;
   note: string;
   payment_method?: string;
+  created_at: string;
+}
+
+export interface HeldSale {
+  id: number;
+  hold_no: string;
+  type: "HOLD" | "QUOTATION";
+  customer_id: number | null;
+  customer_name?: string;
+  mode: SaleMode;
+  discount: number;
+  notes: string;
+  items: CartLine[];
   created_at: string;
 }
 
