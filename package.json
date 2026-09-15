@@ -1,29 +1,39 @@
 {
   "name": "shopmanager-desktop",
-  "version": "1.0.1",
-  "description": "Offline Windows desktop inventory, POS, accounts and shop management software",
+  "version": "1.1.0",
+  "description": "Haji Abdul Manan & Abdul Hanan — Atta Dealer Pishin: offline-first Retail + Wholesale POS, inventory and accounts management",
   "main": "electron/main.cjs",
   "author": "ShopManager",
   "license": "MIT",
+  "type": "module",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build:web": "vite build",
     "start": "electron .",
     "dist": "vite build && electron-builder --win --x64",
-    "check": "node --check electron/main.cjs",
+    "typecheck": "tsc --noEmit",
+    "check": "node --check electron/main.cjs && npm run typecheck",
+    "test:accounting": "node scripts/test-accounting.cjs",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
+    "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
     "electron": "^32.2.7",
     "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "wait-on": "^8.0.1"
   },

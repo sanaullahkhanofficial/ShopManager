@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-stone-100 text-brand-navy-900 antialiased; }
+  [dir="rtl"] { font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", serif; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply btn border-brand-green-700 bg-brand-green-600 text-white hover:bg-brand-green-700;
+  }
+  .btn-danger {
+    @apply btn border-red-600 bg-red-600 text-white hover:bg-red-700;
+  }
+  .input {
+    @apply w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm outline-none transition focus:border-brand-green-500 focus:ring-2 focus:ring-brand-green-100;
+  }
+  .card {
+    @apply rounded-card border border-stone-200 bg-white p-4 shadow-sm;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-stone-500;
+  }
+  .table-base {
+    @apply w-full border-collapse text-sm;
+  }
+  .table-base th {
+    @apply border-b border-stone-200 bg-stone-50 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-stone-500;
+  }
+  .table-base td {
+    @apply border-b border-stone-100 px-3 py-2 text-stone-700;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   58mm dual-copy receipt printing (Sections 34-37).
+   Everything outside #print-root is hidden during window.print().
+------------------------------------------------------------------------- */
+#print-root { position: fixed; left: -9999px; top: 0; }
+@media print {
+  body * { visibility: hidden; }
+  #print-root, #print-root * { visibility: visible; }
+  #print-root { position: absolute; left: 0; top: 0; width: 58mm; }
+  .receipt-copy { page-break-after: always; }
+  .receipt-copy:last-child { page-break-after: auto; }
+}
+.receipt-copy {
+  width: 58mm;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000;
+  padding: 4mm 2mm;
+}
+.receipt-copy .center { text-align: center; }
+.receipt-copy .bold { font-weight: 700; }
+.receipt-copy .divider { border-top: 1px dashed #000; margin: 3px 0; }
+.receipt-copy .row { display: flex; justify-content: space-between; gap: 4px; }
