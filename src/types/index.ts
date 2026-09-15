@@ -311,6 +311,56 @@ export interface ReportSummary {
   wholesaleSales: number;
 }
 
+export interface ReportCompare {
+  current: ReportSummary;
+  previous: ReportSummary;
+  deltaPct: { sales: number; netProfit: number; expenses: number; grossProfit: number };
+}
+
+export interface ReportTrend {
+  granularity: "day" | "month";
+  points: Array<{ label: string; total: number }>;
+}
+
+export interface TopProductRow {
+  id: number;
+  name: string;
+  name_urdu: string;
+  package_unit: string;
+  qty: number;
+  revenue: number;
+}
+
+export interface InventoryReport {
+  products: Array<{ id: number; name: string; name_urdu: string; category_name: string | null; stock: number; avg_cost: number; min_stock: number; package_unit: string; value: number }>;
+  totalValue: number;
+  totalProducts: number;
+  lowCount: number;
+  outCount: number;
+  fastMoving: Array<{ id: number; name: string; name_urdu: string; package_unit: string; qty: number }>;
+  slowMoving: Array<{ id: number; name: string; name_urdu: string; package_unit: string; stock: number }>;
+}
+
+export interface CustomerReportRow {
+  id: number;
+  name: string;
+  customer_type: CustomerType;
+  balance: number;
+  totalPurchases: number;
+  totalPayments: number;
+  lastPurchaseDate: string | null;
+}
+
+export interface SupplierReportRow {
+  id: number;
+  name: string;
+  category: string;
+  balance: number;
+  totalPurchases: number;
+  totalPayments: number;
+  lastPurchaseDate: string | null;
+}
+
 export interface AppNotification {
   id: number;
   type: string;

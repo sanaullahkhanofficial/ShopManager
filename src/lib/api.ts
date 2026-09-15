@@ -110,6 +110,12 @@ export const api = {
 
   dashboard: () => invoke("dashboard"),
   reportsSummary: (range: { from: string; to: string }) => invoke("reports:summary", range),
+  reportsCompare: (range: { from: string; to: string }) => invoke("reports:compare", range),
+  reportsTrend: (range: { from: string; to: string }) => invoke("reports:trend", range),
+  reportsTopProducts: (range: { from: string; to: string; limit?: number }) => invoke("reports:topProducts", range),
+  reportsInventory: (range: { from: string; to: string }) => invoke("reports:inventory", range),
+  reportsCustomers: (range: { from: string; to: string }) => invoke("reports:customers", range),
+  reportsSuppliers: (range: { from: string; to: string }) => invoke("reports:suppliers", range),
   auditList: (limit = 200) => invoke("audit:list", limit),
 
   locationsList: () => invoke("locations:list"),

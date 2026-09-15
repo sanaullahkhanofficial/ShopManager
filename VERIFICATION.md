@@ -267,6 +267,30 @@ any other network resource.
   zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase L checks (this session)
+- `scripts/test-phaseL.cjs` (`npm run test:phaseL`) — 17 assertions:
+  `reports:trend` correctly buckets by day for a within-month range and by
+  month once the range exceeds 31 days, with real daily/monthly sums;
+  `reports:topProducts` orders by real revenue and sums real quantity;
+  `reports:inventory` correctly counts low/out-of-stock products, computes
+  a positive total stock value, and correctly separates fast-moving
+  (products that sold in range) from slow-moving (in-stock, unsold)
+  products; `reports:customers`/`reports:suppliers` sum real purchases and
+  payments within the range (payments matched by `date(created_at)`, not a
+  naive string range) and report the correct outstanding balance and last
+  purchase date. All passed. The twelve earlier suites (`test-accounting`,
+  `test-phase0`, `test-phaseB` through `test-phaseK`) were re-run against
+  the Phase L schema and still pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed with realistic
+  summary/compare/trend/topProducts/inventory/customer/supplier report
+  data): all five tabs — Sales & Revenue (trend chart, top products
+  table), Profit & Loss (delta badges, the two "Where the Money Went"
+  split bars), Inventory (stat cards, fast/slow-moving tables, the stock
+  valuation table with OK/Low/Out-of-Stock status), Customers, and
+  Suppliers (both ranked-by-purchases tables with the correct receivables/
+  payables stat cards) — render correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

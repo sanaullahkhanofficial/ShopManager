@@ -4,7 +4,7 @@ import clsx from "clsx";
 interface StatCardProps {
   label: string;
   value: string;
-  hint?: string;
+  hint?: React.ReactNode;
   icon?: React.ReactNode;
   tone?: "default" | "green" | "gold" | "danger";
 }

@@ -1332,6 +1332,74 @@ function registerIpc() {
     };
   });
 
+  ipcMain.handle("reports:trend", (_, range) => {
+    const from = range.from, to = range.to;
+    const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+    if (days > 0 && days <= 31) {
+      const buckets = [];
+      for (let i = 0; i < days; i++) buckets.push(new Date(new Date(from).getTime() + i * 86400000).toISOString().slice(0, 10));
+      const rows = db.prepare("SELECT sale_date, COALESCE(SUM(total),0) v FROM sales WHERE status='COMPLETED' AND sale_date BETWEEN ? AND ? GROUP BY sale_date").all(from, to);
+      const map = Object.fromEntries(rows.map((r) => [r.sale_date, r.v]));
+      return { granularity: "day", points: buckets.map((d) => ({ label: d, total: map[d] || 0 })) };
+    }
+    const rows = db.prepare("SELECT strftime('%Y-%m',sale_date) ym, COALESCE(SUM(total),0) v FROM sales WHERE status='COMPLETED' AND sale_date BETWEEN ? AND ? GROUP BY ym ORDER BY ym").all(from, to);
+    return { granularity: "month", points: rows.map((r) => ({ label: r.ym, total: r.v })) };
+  });
+
+  ipcMain.handle("reports:topProducts", (_, range) => {
+    const from = range.from, to = range.to, limit = range.limit || 10;
+    return db.prepare(`
+      SELECT p.id, p.name, p.name_urdu, p.package_unit, SUM(si.quantity) qty, SUM(si.amount) revenue
+      FROM sale_items si JOIN sales s ON s.id=si.sale_id JOIN products p ON p.id=si.product_id
+      WHERE s.status='COMPLETED' AND s.sale_date BETWEEN ? AND ?
+      GROUP BY p.id ORDER BY revenue DESC LIMIT ?`).all(from, to, limit);
+  });
+
+  ipcMain.handle("reports:inventory", (_, range) => {
+    const from = (range && range.from) || "1900-01-01", to = (range && range.to) || "2999-12-31";
+    const products = db.prepare(`
+      SELECT p.id, p.name, p.name_urdu, c.name category_name, p.stock, p.avg_cost, p.min_stock, p.package_unit, (p.stock*p.avg_cost) value
+      FROM products p LEFT JOIN categories c ON c.id=p.category_id
+      WHERE p.status='active' ORDER BY value DESC`).all();
+    const totalValue = products.reduce((a, p) => a + p.value, 0);
+    const lowCount = products.filter((p) => p.stock > 0 && p.stock <= p.min_stock).length;
+    const outCount = products.filter((p) => p.stock <= 0).length;
+    const soldRows = db.prepare(`
+      SELECT si.product_id, SUM(si.quantity) qty FROM sale_items si JOIN sales s ON s.id=si.sale_id
+      WHERE s.status='COMPLETED' AND s.sale_date BETWEEN ? AND ? GROUP BY si.product_id`).all(from, to);
+    const soldMap = Object.fromEntries(soldRows.map((r) => [r.product_id, r.qty]));
+    const fastMoving = [...soldRows].sort((a, b) => b.qty - a.qty).slice(0, 10)
+      .map((r) => { const p = products.find((x) => x.id === r.product_id); return p ? { id: p.id, name: p.name, name_urdu: p.name_urdu, package_unit: p.package_unit, qty: r.qty } : null; })
+      .filter(Boolean);
+    const slowMoving = products.filter((p) => p.stock > 0 && !soldMap[p.id]).slice(0, 10)
+      .map((p) => ({ id: p.id, name: p.name, name_urdu: p.name_urdu, package_unit: p.package_unit, stock: p.stock }));
+    return { products, totalValue, totalProducts: products.length, lowCount, outCount, fastMoving, slowMoving };
+  });
+
+  ipcMain.handle("reports:customers", (_, range) => {
+    const from = range.from, to = range.to;
+    return db.prepare(`
+      SELECT c.id, COALESCE(c.shop_name,c.name) name, c.customer_type,
+        COALESCE(c.opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance,
+        COALESCE((SELECT SUM(total) FROM sales s WHERE s.customer_id=c.id AND s.status='COMPLETED' AND s.sale_date BETWEEN ? AND ?),0) totalPurchases,
+        COALESCE((SELECT SUM(amount) FROM customer_transactions t WHERE t.customer_id=c.id AND t.type='PAYMENT' AND date(t.created_at) BETWEEN ? AND ?),0) totalPayments,
+        (SELECT MAX(sale_date) FROM sales s WHERE s.customer_id=c.id AND s.status='COMPLETED') lastPurchaseDate
+      FROM customers c WHERE c.status='active'
+      ORDER BY totalPurchases DESC`).all(from, to, from, to);
+  });
+
+  ipcMain.handle("reports:suppliers", (_, range) => {
+    const from = range.from, to = range.to;
+    return db.prepare(`
+      SELECT s.id, s.name, s.category,
+        COALESCE(s.opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance,
+        COALESCE((SELECT SUM(total) FROM purchases p WHERE p.supplier_id=s.id AND p.purchase_date BETWEEN ? AND ?),0) totalPurchases,
+        COALESCE((SELECT SUM(amount) FROM supplier_transactions t WHERE t.supplier_id=s.id AND t.type='PAYMENT' AND date(t.created_at) BETWEEN ? AND ?),0) totalPayments,
+        (SELECT MAX(purchase_date) FROM purchases p WHERE p.supplier_id=s.id) lastPurchaseDate
+      FROM suppliers s WHERE s.status='active'
+      ORDER BY totalPurchases DESC`).all(from, to, from, to);
+  });
+
   ipcMain.handle("audit:list", (_, limit) => db.prepare("SELECT a.*,u.display_name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT ?").all(limit || 200));
 
   ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataPath: app.getPath("userData") }));

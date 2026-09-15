@@ -655,6 +655,54 @@ inert form fields:
   Cash Summary panel, and both split bars all render correctly with zero
   console errors.
 
+## Phase L — Reports suite (this pass, real, tested)
+
+- **Five real report tabs** replacing the single bare P&L page: **Sales &
+  Revenue**, **Profit & Loss** (v2), **Inventory**, **Customers**, and
+  **Suppliers**, sharing one date-range picker (defaulting to the current
+  month), matching the tabbed pattern every other v2 page now follows.
+- **Sales & Revenue** — the existing `reports:summary` stat cards, now with
+  a real **Sales Trend** chart (new `reports:trend` handler: day-bucketed
+  for ranges up to 31 days, automatically switching to month-bucketed for
+  longer ranges, zero-filled so gaps in trading days still show) and a
+  **Top Selling Products** table (new `reports:topProducts`, a real
+  `GROUP BY product` sum of quantity and revenue within the range).
+- **Profit & Loss v2** — the same real P&L statement as before, now with
+  period-over-period delta badges on every headline stat card (▲/▼ %,
+  reusing the already-tested `reports:compare`/`computeSummary` — this
+  session's `reportsCompare` finally got an `api.ts` wrapper; the handler
+  itself has existed and been tested since Phase 0 but nothing called it),
+  plus a new "Where the Money Went" panel with two `SplitBar`s (Net Sales
+  → COGS vs Gross Profit, Gross Profit → Expenses vs Net Profit) using a
+  freshly validated green/red categorical pair.
+- **Inventory report** — a new `reports:inventory` handler: real stock
+  valuation stats (total value, active product count, low/out-of-stock
+  counts), a **Fast Moving** table (top sellers by quantity within the
+  range) and a **Slow Moving** table (in-stock, active products with zero
+  sales in the range — a real, useful "what's not moving" list, not
+  guessed), and a full per-product stock valuation table with a computed
+  OK/Low/Out-of-Stock status.
+- **Customer and Supplier reports** — two new handlers
+  (`reports:customers`, `reports:suppliers`) aggregating, per entity, real
+  purchases-in-range, real payments-in-range (correctly matched against
+  full timestamps via `date(created_at)` rather than a naive string
+  range), the always-current outstanding balance, and the last purchase
+  date — ranked by purchases descending, so the top customer/supplier is
+  immediately visible, with receivables/payables and an "owing" count
+  surfaced as real stat cards above the table.
+- Verified with `scripts/test-phaseL.cjs` (17 assertions: trend bucketing
+  switches correctly at the 31-day boundary and its buckets match real
+  daily sales sums, top products ranks by real revenue and sums real
+  quantity, inventory correctly separates fast/slow movers and counts
+  low/out-of-stock, and both customer and supplier reports sum real
+  purchases/payments in range and report the correct outstanding balance
+  and last-purchase date) — all pass, plus all twelve earlier suites
+  re-run clean. Visual smoke test confirms all five tabs — including the
+  trend chart, top products table, P&L delta badges and split bars, the
+  inventory fast/slow-moving tables and valuation table with status
+  badges, and both customer/supplier ranked tables — render correctly
+  with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -690,11 +738,11 @@ Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
 → **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 → **J**
-Expenses v2 → **K** Dashboard v2 — all done (see sections above). Next:
-**L** Reports suite (Sales & Revenue, P&L v2, Inventory, Customer,
-Supplier) → **M** Users & Permissions v2 (real matrix enforcement) → **N**
-Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
-receipt polish to match the physical mockup.
+Expenses v2 → **K** Dashboard v2 → **L** Reports suite — all done (see
+sections above). Next: **M** Users & Permissions v2 (real module×action
+matrix enforcement, activity/login logs) → **N** Invoice/Printer Settings
++ 58mm dual-token + real barcode rendering + receipt polish to match the
+physical mockup.
 
 ## Still not started after Phase 0/A–N
 
