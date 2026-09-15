@@ -61,8 +61,8 @@
   #print-root, #print-root * { visibility: visible; }
   #print-root { position: absolute; left: 0; top: 0; width: 58mm; }
   #print-root.print-a4 { width: 190mm; }
-  .receipt-copy { page-break-after: always; }
-  .receipt-copy:last-child { page-break-after: auto; }
+  .receipt-copy, .invoice-copy { page-break-after: always; }
+  .receipt-copy:last-child, .invoice-copy:last-child { page-break-after: auto; }
 }
 .print-list { font-family: Inter, sans-serif; color: #111; padding: 6mm; }
 .print-list h1 { font-size: 16px; margin: 0 0 2px; }
@@ -82,3 +82,29 @@
 .receipt-copy .bold { font-weight: 700; }
 .receipt-copy .divider { border-top: 1px dashed #000; margin: 3px 0; }
 .receipt-copy .row { display: flex; justify-content: space-between; gap: 4px; }
+
+.invoice-copy {
+  width: 190mm;
+  min-height: 130mm;
+  font-family: Inter, sans-serif;
+  color: #111;
+  padding: 10mm 12mm;
+  box-sizing: border-box;
+}
+.invoice-copy .inv-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.invoice-copy .inv-business { font-size: 18px; font-weight: 700; }
+.invoice-copy .inv-tagline { font-size: 12px; color: #15803d; font-weight: 600; }
+.invoice-copy .inv-small { font-size: 11px; color: #555; }
+.invoice-copy .inv-title { text-align: right; }
+.invoice-copy .inv-title-main { font-size: 15px; font-weight: 700; letter-spacing: 0.05em; }
+.invoice-copy .inv-divider { border-top: 1px solid #ccc; margin: 4mm 0; }
+.invoice-copy .inv-meta { display: flex; justify-content: space-between; margin-bottom: 4mm; font-size: 12px; }
+.invoice-copy .bold { font-weight: 700; }
+.invoice-copy .inv-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4mm; }
+.invoice-copy .inv-table th, .invoice-copy .inv-table td { border: 1px solid #ccc; padding: 3px 6px; text-align: left; }
+.invoice-copy .inv-table th { background: #f3f3f3; }
+.invoice-copy .inv-table td:nth-child(1), .invoice-copy .inv-table td:nth-child(3), .invoice-copy .inv-table td:nth-child(4), .invoice-copy .inv-table td:nth-child(5) { text-align: right; }
+.invoice-copy .inv-totals { margin-left: auto; width: 60mm; font-size: 12px; }
+.invoice-copy .inv-totals .row { display: flex; justify-content: space-between; padding: 1px 0; }
+.invoice-copy .inv-totals .total { border-top: 1px solid #333; margin-top: 2px; padding-top: 2px; font-size: 13px; }
+.invoice-copy .inv-footer { display: flex; justify-content: space-between; font-size: 10px; color: #777; }

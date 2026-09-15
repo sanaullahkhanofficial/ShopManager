@@ -406,6 +406,49 @@ inert form fields:
   and the Recent Bills modal (with a working Reprint button) all render
   correctly against realistic seeded data with zero console errors.
 
+## Phase G — Purchases v2 (this pass, real, tested)
+
+- **Converged layout** — the old separate "New Purchase" form and the
+  Purchase Orders page's "Receive" modal are now one screen with a
+  Direct Purchase / From Purchase Order toggle, instead of two places that
+  could drift out of sync. Direct Purchase keeps the manual
+  supplier-then-products flow (now with Discount and Tax fields, since the
+  backend already carried them from Phase 0 but no UI exposed them yet).
+  From Purchase Order lists a supplier's open (SENT/PARTIALLY_RECEIVED) POs;
+  picking one loads its real remaining quantities and rates as editable
+  lines (quantity capped to what's actually left to receive) and Save now
+  calls the same tested `po:receive` transaction the old Purchase Orders
+  page used — so a PO received from either screen behaves identically and
+  still advances the PO's status (PARTIALLY_RECEIVED/RECEIVED) correctly.
+- **Live invoice preview** — the right-hand panel itself *is* the invoice
+  being built: supplier name, a running item table, and totals all update
+  immediately as products are added or quantities/rates are edited, rather
+  than a bare form with a separate summary line.
+- **Dual-copy A4 purchase invoice printing** — a new `PurchaseInvoicePreview`
+  component (mirroring `ReceiptPreview`'s pattern but sized for A4 instead
+  of 58mm) renders a Supplier Copy and an Office Copy of the real saved
+  purchase — never estimated data, always re-fetched via `purchases:get`
+  right after save so the printed invoice can't drift from what was
+  actually recorded. Save & Print triggers `window.print()` the same way
+  POS does; a **Reprint** action on any history row re-fetches and reprints
+  a past purchase identically.
+- **PO linkage surfaced everywhere it matters**: `purchases:list`/`get` now
+  join the source PO's `po_no`, so Purchase History shows a "from PO-…"
+  line under any PO-derived purchase, and the printed invoice shows
+  "Ref PO: …" when relevant — the traceability was already in the schema
+  (`purchases.po_id`, Phase 0) but nothing displayed it until now.
+- Verified with `scripts/test-phaseG.cjs` (11 assertions: a direct purchase
+  correctly applies discount and tax to the total; `purchases:get`/`list`
+  join supplier name+phone and product names correctly; a PO-linked
+  purchase's `po_no` join matches its source PO and carries the automatic
+  "From PO-…" note; the PO correctly reaches RECEIVED status through the
+  same converged flow; and a fully-received PO correctly reports no open
+  line items left to link) — all pass, plus all seven earlier suites
+  re-run clean. Visual smoke test confirms the mode toggle, the live
+  invoice preview updating as a product is added (Direct Purchase) and as
+  a PO is selected (From Purchase Order, showing real remaining quantities),
+  and the Reprint action all render correctly with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -440,12 +483,12 @@ These are named explicitly so nobody mistakes silence for "it exists":
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
-— all done (see sections above). Next: **G** Purchases v2 (converged
-layout, live invoice preview, dual print, PO linkage) → **H** Returns v2 →
-**I** Cash Management v2 → **J** Expenses v2 → **K** Dashboard v2 → **L**
-Reports suite → **M** Users & Permissions v2 (real matrix enforcement) →
-**N** Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
-receipt polish to match the physical mockup.
+→ **G** Purchases v2 — all done (see sections above). Next: **H** Returns
+v2 (Refund vs Exchange, batch_ref, credit notes) → **I** Cash Management v2
+→ **J** Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M**
+Users & Permissions v2 (real matrix enforcement) → **N** Invoice/Printer
+Settings + 58mm dual-token + real barcode rendering + receipt polish to
+match the physical mockup.
 
 ## Still not started after Phase 0/A–N
 

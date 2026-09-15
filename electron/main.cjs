@@ -921,10 +921,10 @@ function registerIpc() {
   });
 
   // ---- Purchases -----------------------------------------------------------
-  ipcMain.handle("purchases:list", () => db.prepare(`SELECT p.*,s.name supplier_name FROM purchases p LEFT JOIN suppliers s ON s.id=p.supplier_id ORDER BY p.id DESC LIMIT 200`).all());
+  ipcMain.handle("purchases:list", () => db.prepare(`SELECT p.*,s.name supplier_name,po.po_no FROM purchases p LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN po_orders po ON po.id=p.po_id ORDER BY p.id DESC LIMIT 200`).all());
   ipcMain.handle("purchases:get", (_, id) => ({
-    purchase: db.prepare("SELECT p.*,s.name supplier_name FROM purchases p LEFT JOIN suppliers s ON s.id=p.supplier_id WHERE p.id=?").get(id),
-    items: db.prepare("SELECT pi.*,p.name product_name FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=?").all(id)
+    purchase: db.prepare("SELECT p.*,s.name supplier_name,s.phone supplier_phone,po.po_no FROM purchases p LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN po_orders po ON po.id=p.po_id WHERE p.id=?").get(id),
+    items: db.prepare("SELECT pi.*,p.name product_name,p.name_urdu,p.package_unit FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=?").all(id)
   }));
   const createPurchaseTx = db.transaction((v) => {
     if (!v.items?.length) throw new Error("No items in purchase");

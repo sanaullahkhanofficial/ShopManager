@@ -65,7 +65,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6">
           {page === "dashboard" && <Dashboard onNavigate={setPage} />}
           {page === "pos" && <POS user={user} settings={settings} />}
-          {page === "purchases" && <Purchases user={user} />}
+          {page === "purchases" && <Purchases user={user} settings={settings} />}
           {page === "products" && <Products user={user} settings={settings} onNavigate={setPage} />}
           {page === "stockAdjustment" && <StockAdjustment user={user} settings={settings} />}
           {page === "stockTransfer" && <StockTransfer user={user} settings={settings} />}

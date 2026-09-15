@@ -1,6 +1,6 @@
 {
   "name": "shopmanager-desktop",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Haji Abdul Manan & Abdul Hanan — Atta Dealer Pishin: offline-first Retail + Wholesale POS, inventory and accounts management",
   "main": "electron/main.cjs",
   "author": "ShopManager",
@@ -20,6 +20,7 @@
     "test:phaseD": "node scripts/test-phaseD.cjs",
     "test:phaseE": "node scripts/test-phaseE.cjs",
     "test:phaseF": "node scripts/test-phaseF.cjs",
+    "test:phaseG": "node scripts/test-phaseG.cjs",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

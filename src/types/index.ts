@@ -178,13 +178,30 @@ export interface Purchase {
   invoice_no: string;
   supplier_id: number | null;
   supplier_name?: string;
+  supplier_phone?: string;
+  po_id: number | null;
+  po_no?: string | null;
   subtotal: number;
+  discount: number;
+  tax: number;
   total: number;
   paid: number;
   balance: number;
   payment_method: PaymentMethod;
   notes: string;
   purchase_date: string;
+}
+
+export interface PurchaseItem {
+  id: number;
+  purchase_id: number;
+  product_id: number;
+  product_name?: string;
+  name_urdu?: string;
+  package_unit?: string;
+  quantity: number;
+  rate: number;
+  amount: number;
 }
 
 export interface Expense {

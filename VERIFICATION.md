@@ -154,6 +154,27 @@ any other network resource.
   zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase G checks (this session)
+- `scripts/test-phaseG.cjs` (`npm run test:phaseG`) — 11 assertions: a
+  direct purchase correctly applies discount and tax to the total;
+  `purchases:get` joins supplier name/phone and product names onto line
+  items; `purchases:list`/`get` correctly show `po_no` as null for a direct
+  purchase and matching the source PO for a PO-linked one; a PO-linked
+  purchase carries the automatic "From PO-…" note; the source PO correctly
+  reaches RECEIVED status; and a fully-received PO reports no open line
+  items left. All passed. The seven earlier suites (`test-accounting`,
+  `test-phase0`, `test-phaseB` through `test-phaseF`) were re-run against
+  the Phase G schema and still pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed with realistic
+  products/suppliers/open-PO/purchase-history data): the Direct Purchase /
+  From Purchase Order mode toggle, the live invoice preview updating as a
+  product is added in Direct mode (supplier name, item row, running total)
+  and as a PO is selected in PO mode (real remaining quantities and rate
+  pre-filled, discount/tax fields correctly hidden since `po:receive`
+  doesn't support them), and the Reprint action on a history row all
+  render correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
