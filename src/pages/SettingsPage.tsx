@@ -159,6 +159,9 @@ export function SettingsPage({ value, onSaved, user }: { value: Settings; onSave
             <Switch checked={on(x.show_logo_on_invoice)} onChange={(v) => update({ show_logo_on_invoice: flag(v) })} label="Show Business Logo on Invoice" />
             <Switch checked={on(x.show_barcode_on_invoice)} onChange={(v) => update({ show_barcode_on_invoice: flag(v) })} label="Show Barcode on Invoice" />
             <Switch checked={on(x.show_terms_on_invoice)} onChange={(v) => update({ show_terms_on_invoice: flag(v) })} label="Show Terms &amp; Conditions" />
+            {on(x.show_terms_on_invoice) && (
+              <TextAreaField label="Terms & Conditions Text" value={x.invoice_terms || ""} onChange={(e) => update({ invoice_terms: e.target.value })} />
+            )}
             <Switch checked={on(x.show_thankyou_on_invoice)} onChange={(v) => update({ show_thankyou_on_invoice: flag(v) })} label="Show Thank You Message" />
             <Field label="Footer Text" value={x.invoice_footer} onChange={(e) => update({ invoice_footer: e.target.value })} />
             <div className="flex gap-2 pt-1">
@@ -166,8 +169,8 @@ export function SettingsPage({ value, onSaved, user }: { value: Settings; onSave
               <Button onClick={() => { setPreview(true); setTimeout(() => window.print(), 200); }}><Printer size={14} /> Print Test Invoice</Button>
             </div>
             <p className="text-xs text-stone-400">
-              Full ESC/POS printer configuration, live A4-style invoice preview and 58mm dual-token print layout live on the
-              dedicated Invoice &amp; Thermal Printer Settings page (Phase N).
+              The preview and every real Save &amp; Print reflect these settings live — the template, paper size, logo,
+              barcode, terms and thank-you toggles all drive the actual printed receipt, not just this form.
             </p>
           </div>
           <div className="card">
@@ -177,6 +180,10 @@ export function SettingsPage({ value, onSaved, user }: { value: Settings; onSave
               <Switch checked={on(x.print_office_copy)} onChange={(v) => update({ print_office_copy: flag(v) })} label="Print Office Copy" />
               <Switch checked={on(x.auto_cut)} onChange={(v) => update({ auto_cut: flag(v) })} label="Auto Cut (58mm printer, when supported)" />
             </div>
+            <p className="mt-3 text-xs text-stone-400">
+              Both copies always carry the same invoice number and totals (Section 78) — they're rendered from one shared
+              receipt model, so a Customer Copy and Office Copy can never disagree.
+            </p>
           </div>
         </div>
       )}
@@ -264,11 +271,14 @@ export function SettingsPage({ value, onSaved, user }: { value: Settings; onSave
       </div>
 
       {preview && (
-        <Modal title="Invoice Preview" onClose={() => setPreview(false)} wide>
+        <Modal title={`Invoice Preview — ${x.invoice_size || "58mm Thermal"} · ${x.invoice_template || "Standard"} · Dual Copy`} onClose={() => setPreview(false)} wide>
           <div className="rounded-md bg-stone-100 p-4">
             <ReceiptPreview data={SAMPLE_RECEIPT} settings={x} variant="visible" />
           </div>
-          <p className="mt-3 text-center text-xs text-stone-400">Sample data — actual invoices use the real sale.</p>
+          <p className="mt-3 text-center text-xs text-stone-400">
+            Sample data — actual invoices use the real sale. Both the Customer Copy and Office Copy tokens shown above are
+            exactly what Save &amp; Print produces.
+          </p>
         </Modal>
       )}
       {/* Hidden print-only copy kept in the DOM so "Print Test Invoice" has something to print. */}

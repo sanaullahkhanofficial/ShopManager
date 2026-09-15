@@ -776,6 +776,75 @@ inert form fields:
   LOGIN_FAILED/PERMISSION_CHANGED badges with readable details) all
   render correctly with zero console errors.
 
+## Phase N — Invoice/Printer Settings + 58mm dual-token + real barcode + receipt polish (this pass, real, tested)
+
+- **The headline change: every Invoice & Print setting now actually drives
+  the printed receipt.** Since Phase B the Settings page had a full
+  Invoice & Print tab — template, size, prefix, logo/barcode/terms/
+  thank-you toggles, footer text — but `ReceiptPreview` never read most of
+  it; the component was rewritten around one shared `ReceiptData` model so
+  Customer Copy and Office Copy render from the exact same data and can
+  never disagree (Section 78), with every toggle now genuinely gating what
+  prints: `show_logo_on_invoice` (only renders if a logo is also set),
+  `show_barcode_on_invoice` (real CODE128 via the existing `Barcode`
+  component, rendering the actual invoice number), `show_terms_on_invoice`
+  (with a new `invoice_terms` setting, previously nonexistent — the toggle
+  had nothing to show), and `show_thankyou_on_invoice` (correctly scoped
+  to only the Customer Copy's footer; the Office Copy always shows "For
+  internal record only." since that's an internal note, not a customer
+  thank-you).
+- **`invoice_size` (58mm Thermal / A4) and `invoice_template` (Standard /
+  Modern / Minimal / Compact (Thermal)) are real, visible differences, not
+  cosmetic labels.** A4 renders the same familiar dual-copy layout scaled
+  up (`.receipt-copy.a4`: 180mm width, larger font/line-height/padding) for
+  shops without 58mm thermal hardware, deliberately staying a lighter-
+  weight variant of the existing receipt rather than duplicating Phase G's
+  separate `PurchaseInvoicePreview` A4 design. Each template maps to a
+  genuine CSS difference: Compact (Thermal) tightens font-size/line-height/
+  padding for shops wanting less paper per receipt, Minimal lightens the
+  divider lines and drops the "FERTILIZERS | GRAINS | ATTA" line, Modern
+  switches to Inter with bolder totals and a thicker divider.
+- **`invoice_size` default corrected from "A4" to "58mm Thermal".** The
+  setting was previously never read, so its "A4" default was silently
+  meaningless — actual rendering was always 58mm regardless. Since this is
+  pre-release software with no existing installs whose behavior could
+  regress, the default was fixed to match the business's real hardware and
+  every receipt rendered up to this phase, rather than leaving a stale
+  default that would now silently change real behavior for nobody.
+- **A real bug found and fixed during visual verification, not just
+  backend testing**: the first A4 barcode implementation used
+  `transform: scale(1.6)` in CSS to enlarge the barcode for A4's bigger
+  paper. CSS transforms don't reserve extra layout space — the box keeps
+  its original untransformed size for document flow, so the visually
+  enlarged barcode overlapped the terms text above it and the thank-you
+  line below it. Fixed by sizing the barcode through its own `height`/
+  `width`/`fontSize` props when `invoice_size` is A4 (45/1.8/14 vs. the
+  58mm defaults 28/1.1/9) instead of a CSS transform, removing the overlap
+  entirely — confirmed by re-screenshotting the exact A4 + Compact
+  (Thermal) + terms-enabled combination that first exposed it.
+- **Settings page polish**: the Terms & Conditions textarea only appears
+  when its toggle is on (no dead field taking up space when unused); the
+  old inline comment deferring this exact wiring to "Phase N" was replaced
+  with real descriptive text; the Preview Invoice modal's title now shows
+  the live settings combination (e.g. "Invoice Preview — A4 · Compact
+  (Thermal) · Dual Copy") so what's previewed is never ambiguous.
+- Verified with `scripts/test-phaseN.cjs` (11 assertions: `invoice_size`
+  defaults to 58mm Thermal, `invoice_terms` seeds with real default text,
+  every invoice/printer field persists through the real `settings:update`
+  path including the terms toggle and its text together, and — re-
+  confirming Phase M's enforcement reaches this real handler too — a
+  Cashier is still denied from changing invoice/printer settings with the
+  denied attempt leaving the setting genuinely unchanged) — all pass, plus
+  all fourteen earlier suites re-run clean with zero regressions. Visual
+  smoke test (Playwright) walked Settings → Invoice & Print → Preview
+  Invoice at the 58mm Thermal/Standard default (confirming the dual-copy
+  layout, a real scannable CODE128 barcode rendering the actual invoice
+  number, and correct footer text on each copy), then live-toggled Terms &
+  Conditions on and switched to A4 + Compact (Thermal) and previewed again
+  — confirming the settings-tab UI, the template/size switch, and the
+  resulting receipt all update correctly with zero console errors (the one
+  console message across the whole run was a harmless favicon 404).
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -807,17 +876,17 @@ These are named explicitly so nobody mistakes silence for "it exists":
 - **Data-grid features** (Section 53): column visibility, CSV/PDF export,
   server-side pagination — tables are simple, unpaginated, client-filtered.
 
-## Page-level phases (A–N), queued as tasks, next up
+## Page-level phases (A–N) — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
 → **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 → **J**
 Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M** Users &
-Permissions v2 — all done (see sections above). Next: **N** Invoice/
-Printer Settings + 58mm dual-token + real barcode rendering + receipt
-polish to match the
-physical mockup.
+Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
+barcode rendering + receipt polish — all done (see sections above). This
+was the last lettered phase in the original plan; what remains is the
+list below, none of it faked or half-built, all of it named honestly.
 
 ## Still not started after Phase 0/A–N
 
@@ -831,3 +900,6 @@ physical mockup.
 4. Tauri desktop packaging — still Electron.
 5. AI Business Assistant (Sections 59–60).
 6. Real messaging integration (SMS/WhatsApp/email) behind the send buttons.
+7. Client-side per-role UI gating (Section 39) — Phase M's server-side
+   enforcement is real and tested, but nav items and buttons still render
+   the same for every role rather than being hidden per permission.

@@ -322,6 +322,45 @@ any other network resource.
   render correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase N checks (this session)
+- `scripts/test-phaseN.cjs` (`npm run test:phaseN`) — 11 assertions:
+  `invoice_size` defaults to `"58mm Thermal"` (corrected from a
+  previously-meaningless `"A4"` default that the renderer never actually
+  read); `invoice_terms` seeds with real default text, not empty;
+  `invoice_template` defaults to `"Standard"`; `show_barcode_on_invoice`
+  defaults on; every invoice/printer field (`invoice_template`,
+  `invoice_size`, the four show-toggles, `invoice_terms`) persists through
+  a real `settings:update` call, including the terms toggle and its custom
+  text persisting together; and — re-confirming Phase M's enforcement
+  reaches this real handler — a Cashier is still denied from changing
+  invoice/printer settings, with the denied attempt leaving
+  `invoice_template` genuinely unchanged. All passed, plus all fourteen
+  earlier suites (`test-accounting` through `test-phaseM`) re-run clean
+  with zero regressions from the `invoice_size` default change or the new
+  `invoice_terms` key.
+- Visual smoke test (Playwright, `window.api` stubbed with a mutable
+  settings store so `settings:update` calls genuinely change what
+  `settings:get` returns next, simulating real persistence): the Invoice &
+  Print settings tab renders correctly at the default 58mm Thermal/
+  Standard combination; the Preview Invoice modal shows both Customer Copy
+  and Office Copy with a real scannable CODE128 barcode rendering the
+  actual invoice number, correct item/total/payment rows, and the correct
+  per-copy footer text. Live-toggling Terms & Conditions on and switching
+  to Invoice Size = A4 + Invoice Template = Compact (Thermal), then
+  previewing again, confirmed the settings tab and the resulting receipt
+  both update live — including catching a real bug (see below) that was
+  fixed and re-verified with the same screenshot before being called done.
+- **Bug found during visual verification, not backend testing**: the first
+  A4 barcode implementation sized the barcode with CSS
+  `transform: scale(1.6)`, which doesn't reserve extra layout space —
+  the enlarged barcode visually overlapped the terms text above it and
+  the thank-you line below it. Fixed by sizing the barcode via its own
+  `height`/`width`/`fontSize` props for A4 instead of a transform;
+  re-screenshotted the exact A4 + Compact (Thermal) + terms-enabled
+  combination that exposed it and confirmed the overlap is gone.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

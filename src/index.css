@@ -82,6 +82,29 @@
 .receipt-copy .bold { font-weight: 700; }
 .receipt-copy .divider { border-top: 1px dashed #000; margin: 3px 0; }
 .receipt-copy .row { display: flex; justify-content: space-between; gap: 4px; }
+.receipt-copy .terms { font-size: 9px; color: #333; margin: 2px 0; }
+.receipt-copy .receipt-logo { max-height: 12mm; max-width: 32mm; object-fit: contain; margin: 0 auto 2px; display: block; }
+.receipt-copy .barcode-wrap { margin: 3px 0; }
+.receipt-copy .barcode-wrap svg { max-width: 100%; }
+
+/* Invoice template variants (Section: Invoice & Print settings) — real,
+   visible differences per template, not just a saved-but-unused label. */
+.receipt-copy.tpl-compact-thermal { font-size: 10px; line-height: 1.15; padding: 2mm 2mm; }
+.receipt-copy.tpl-compact-thermal .divider { margin: 1px 0; }
+.receipt-copy.tpl-minimal .divider { border-top-style: solid; opacity: 0.25; }
+.receipt-copy.tpl-modern { font-family: Inter, sans-serif; }
+.receipt-copy.tpl-modern .divider { border-top: 2px solid #000; }
+.receipt-copy.tpl-modern .bold { font-weight: 800; }
+
+/* A4-sized receipt (same simple layout, printed larger on full-sheet paper
+   for shops without a 58mm thermal printer). */
+.receipt-copy.a4 {
+  width: 180mm;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 12mm;
+}
+.receipt-copy.a4 .barcode-wrap { margin: 6px 0; }
 
 .invoice-copy {
   width: 190mm;
