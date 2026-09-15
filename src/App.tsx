@@ -81,7 +81,7 @@ export default function App() {
           {page === "expenses" && <Expenses user={user} />}
           {page === "reports" && <Reports />}
           {page === "users" && <Users user={user} />}
-          {page === "settings" && <SettingsPage value={settings} onSaved={setSettings} />}
+          {page === "settings" && <SettingsPage value={settings} onSaved={setSettings} user={user} />}
           {page === "backup" && <Backup />}
           {page === "aiAssistant" && <AIAssistant />}
         </main>

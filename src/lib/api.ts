@@ -20,6 +20,12 @@ export const api = {
 
   usersList: () => invoke("users:list"),
   usersAdd: (x: Record<string, unknown>) => invoke("users:add", x),
+  usersResetPassword: (x: Record<string, unknown>) => invoke("users:resetPassword", x),
+  usersSetStatus: (x: Record<string, unknown>) => invoke("users:setStatus", x),
+
+  permissionsDefinitions: () => invoke<string[]>("permissions:definitions"),
+  permissionsMatrix: () => invoke("permissions:matrix"),
+  permissionsUpdate: (x: Record<string, unknown>) => invoke("permissions:update", x),
 
   categoriesList: () => invoke("categories:list"),
   categoriesSave: (x: Record<string, unknown>) => invoke("categories:save", x),

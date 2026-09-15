@@ -291,6 +291,37 @@ any other network resource.
   payables stat cards) — render correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase M checks (this session)
+- `scripts/test-phaseM.cjs` (`npm run test:phaseM`) — 19 assertions: a
+  Cashier is genuinely denied `expenses.create`, `settings.manage` (with
+  the setting confirmed unchanged, not just an error thrown), and
+  `users.manage`; a call with no `actorId` at all is denied rather than
+  silently allowed; granting a permission to a role takes effect
+  immediately on the next call; revoking the Owner role's `users.manage`
+  permission is rejected and confirmed still intact afterward;
+  `permissions:matrix` returns the real full role×permission grid;
+  deactivating a user really blocks their login; a password reset really
+  changes what password logs in and the old one stops working; and both a
+  successful and a failed login attempt are recorded in the audit log with
+  the real user name joined in. All passed. The thirteen earlier suites
+  (`test-accounting`, `test-phase0`, `test-phaseB` through `test-phaseL`)
+  were re-run against the Phase M schema — three of them
+  (`test-accounting.cjs`, `test-phase0.cjs`, `test-phaseB.cjs`, all
+  written before the `actorId` convention was established) needed a
+  one-line `actorId: 1` added to a handful of setup calls that predated
+  it; every call site in the real frontend UI was individually verified to
+  already pass `actorId` correctly before any handler was gated, so no
+  application behavior changed, only the test scripts' own setup calls.
+  All fourteen suites pass clean together.
+- Visual smoke test (Playwright, `window.api` stubbed with realistic
+  users/permission-matrix/audit-log data): the Users tab (list, status
+  toggle disabled for one's own row, Reset Password modal), the
+  Permission Matrix tab (grouped by module with all 8 role columns, a
+  live checkbox toggle), and the Activity Log tab (color-coded LOGIN/
+  LOGIN_FAILED/PERMISSION_CHANGED badges with readable details) all
+  render correctly with zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

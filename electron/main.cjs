@@ -335,6 +335,21 @@ function audit(userId, action, entity, entityId, details) {
     .run(userId ?? null, action, entity ?? null, entityId ?? null, details ? JSON.stringify(details) : null, now());
 }
 
+// Section 39: real IPC-boundary enforcement for the permission matrix — a
+// curated set of money-moving/administrative channels each map 1:1 to one
+// of the 24 permissions; read-only list/get channels are intentionally left
+// ungated (there's no matching permission for "viewing a list" in the
+// catalog, and page-level access is a separate, larger UI-gating project
+// tracked in ROADMAP.md). Throws (denying the action) rather than silently
+// no-opping, so a blocked user sees a real error, not a false success.
+function requirePermission(actorId, permission) {
+  if (!actorId) throw new Error(`Permission denied: no signed-in user for "${permission}"`);
+  const u = db.prepare("SELECT role FROM users WHERE id=?").get(actorId);
+  if (!u) throw new Error(`Permission denied: unknown user for "${permission}"`);
+  const row = db.prepare("SELECT allowed FROM role_permissions WHERE role=? AND permission=?").get(u.role, permission);
+  if (!row || !row.allowed) throw new Error(`Permission denied: role "${u.role}" cannot "${permission}"`);
+}
+
 // Section 32: collision-free sequential invoice numbering, per prefix per day.
 function nextNo(prefix) {
   const dateKey = today().replace(/-/g, "");
@@ -609,7 +624,13 @@ function seed() {
 // ---------------------------------------------------------------------------
 function registerIpc() {
   ipcMain.handle("settings:get", () => settingsGet());
-  ipcMain.handle("settings:update", (_, o) => { const s = settingsSet(o); audit(null, "SETTINGS_CHANGED", "settings", null, o); return s; });
+  ipcMain.handle("settings:update", (_, o) => {
+    const { actorId, ...fields } = o;
+    requirePermission(actorId, "settings.manage");
+    const s = settingsSet(fields);
+    audit(actorId, "SETTINGS_CHANGED", "settings", null, fields);
+    return s;
+  });
 
   ipcMain.handle("auth:login", (_, credentialsOrUsername, passwordArg) => {
     const credentials = credentialsOrUsername && typeof credentialsOrUsername === "object"
@@ -618,19 +639,34 @@ function registerIpc() {
     const password = String(credentials.password ?? "");
     if (!username || !password) throw new Error("Username and password are required");
     const u = db.prepare("SELECT id,username,display_name,role,password_hash FROM users WHERE username=@username AND status='active'").get({ username });
-    if (!u || !verifyPassword(password, u.password_hash)) throw new Error("Invalid username or password");
+    if (!u || !verifyPassword(password, u.password_hash)) {
+      audit(u ? u.id : null, "LOGIN_FAILED", "user", u ? u.id : null, { username });
+      throw new Error("Invalid username or password");
+    }
     audit(u.id, "LOGIN", "user", u.id, null);
     return { id: u.id, username: u.username, display_name: u.display_name, role: u.role };
   });
 
   ipcMain.handle("users:list", () => db.prepare("SELECT id,username,display_name,role,status,created_at FROM users ORDER BY id DESC").all());
   ipcMain.handle("users:add", (_, x) => {
+    requirePermission(x.actorId, "users.manage");
     const r = db.prepare("INSERT INTO users(username,display_name,role,password_hash,created_at) VALUES(?,?,?,?,?)")
       .run(x.username, x.display_name, x.role, hashPassword(x.password || "admin123"), now());
     audit(x.actorId, "CREATE", "user", r.lastInsertRowid, { username: x.username, role: x.role });
     return r.lastInsertRowid;
   });
-  ipcMain.handle("users:resetPassword", (_, id, pw) => { db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(hashPassword(pw), id); audit(null, "PASSWORD_RESET", "user", id, null); return true; });
+  ipcMain.handle("users:resetPassword", (_, x) => {
+    requirePermission(x.actorId, "users.manage");
+    db.prepare("UPDATE users SET password_hash=? WHERE id=?").run(hashPassword(x.password), x.id);
+    audit(x.actorId, "PASSWORD_RESET", "user", x.id, null);
+    return true;
+  });
+  ipcMain.handle("users:setStatus", (_, x) => {
+    requirePermission(x.actorId, "users.manage");
+    db.prepare("UPDATE users SET status=? WHERE id=?").run(x.status, x.id);
+    audit(x.actorId, x.status === "active" ? "USER_REACTIVATED" : "USER_DEACTIVATED", "user", x.id, null);
+    return true;
+  });
 
   ipcMain.handle("images:pick", async () => {
     const r = await dialog.showOpenDialog(win, { title: "Choose image", properties: ["openFile"], filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "webp"] }] });
@@ -675,6 +711,7 @@ function registerIpc() {
     FROM locations l LEFT JOIN product_location_stock pls ON pls.location_id=l.id AND pls.product_id=?
     WHERE l.status='active' ORDER BY l.name`).all(productId));
   ipcMain.handle("stock:transfer", (_, x) => {
+    requirePermission(x.actorId, "inventory.adjust");
     const tx = db.transaction(v => {
       if (v.from_location_id === v.to_location_id) throw new Error("Source and destination must differ");
       const no = nextNo("TRF");
@@ -720,6 +757,7 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle("products:adjust", (_, x) => {
+    requirePermission(x.actorId, "inventory.adjust");
     const qty = Number(x.quantity);
     const type = qty >= 0 ? "STOCK_ADJUSTMENT_IN" : "STOCK_ADJUSTMENT_OUT";
     applyStock(x.product_id, x.location_id, qty, Number(x.unit_cost || 0), type, "MANUAL", x.reason || "Manual adjustment", x.actorId);
@@ -763,6 +801,7 @@ function registerIpc() {
     SELECT c.*, g.name group_name, COALESCE(c.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance
     FROM customers c LEFT JOIN customer_groups g ON g.id=c.group_id WHERE c.status='active' ORDER BY COALESCE(c.shop_name,c.name)`).all());
   ipcMain.handle("customers:save", (_, x) => {
+    requirePermission(x.actorId, "customers.create");
     if (x.id) {
       // Merge onto the existing row so a partial payload (Set Credit Limit,
       // Deactivate Customer, etc.) never nulls out fields it didn't send.
@@ -799,6 +838,7 @@ function registerIpc() {
     SELECT s.*, COALESCE(s.opening_balance,0) + COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance
     FROM suppliers s WHERE s.status='active' ORDER BY s.name`).all());
   ipcMain.handle("suppliers:save", (_, x) => {
+    requirePermission(x.actorId, "suppliers.create");
     if (x.id) {
       const existing = db.prepare("SELECT * FROM suppliers WHERE id=?").get(x.id);
       if (!existing) throw new Error("Supplier not found");
@@ -863,8 +903,9 @@ function registerIpc() {
     audit(v.actorId, "CREATE", "sale", sale.lastInsertRowid, { invoice_no: no, total, paid, balance });
     return { id: sale.lastInsertRowid, invoice_no: no, subtotal, discount, tax, total, paid, balance, sale_date: today() };
   });
-  ipcMain.handle("sales:create", (_, x) => createSaleTx(x));
+  ipcMain.handle("sales:create", (_, x) => { requirePermission(x.actorId, "sales.create"); return createSaleTx(x); });
   ipcMain.handle("sales:void", (_, x) => {
+    requirePermission(x.actorId, "sales.delete");
     const tx = db.transaction(v => {
       const sale = db.prepare("SELECT * FROM sales WHERE id=?").get(v.id);
       if (!sale) throw new Error("Sale not found");
@@ -907,6 +948,7 @@ function registerIpc() {
     FROM sales_returns sr JOIN sales s ON s.id=sr.sale_id LEFT JOIN customers c ON c.id=sr.customer_id
     ORDER BY sr.id DESC LIMIT 200`).all());
   ipcMain.handle("salesReturns:create", (_, x) => {
+    requirePermission(x.actorId, "sales.return");
     const tx = db.transaction(v => {
       const sale = db.prepare("SELECT * FROM sales WHERE id=?").get(v.sale_id);
       if (!sale) throw new Error("Original sale not found");
@@ -975,7 +1017,7 @@ function registerIpc() {
     audit(v.actorId, "CREATE", "purchase", purchase.lastInsertRowid, { invoice_no: no, total: grandTotal, paid, balance });
     return { id: purchase.lastInsertRowid, invoice_no: no, total: grandTotal, paid, balance };
   });
-  ipcMain.handle("purchases:create", (_, x) => createPurchaseTx(x));
+  ipcMain.handle("purchases:create", (_, x) => { requirePermission(x.actorId, "purchase.create"); return createPurchaseTx(x); });
 
   // ---- Purchase Orders (draft -> sent -> received -> converts to a Purchase) --
   ipcMain.handle("po:list", () => db.prepare(`SELECT po.*,s.name supplier_name FROM po_orders po LEFT JOIN suppliers s ON s.id=po.supplier_id ORDER BY po.id DESC LIMIT 200`).all());
@@ -984,6 +1026,7 @@ function registerIpc() {
     items: db.prepare("SELECT poi.*,p.name product_name FROM po_items poi JOIN products p ON p.id=poi.product_id WHERE poi.po_id=?").all(id)
   }));
   ipcMain.handle("po:create", (_, x) => {
+    requirePermission(x.actorId, "purchase.create");
     const tx = db.transaction(v => {
       const no = nextNo("PO");
       const po = db.prepare("INSERT INTO po_orders(po_no,supplier_id,location_id,status,expected_date,notes,user_id,created_at) VALUES(?,?,?,?,?,?,?,?)")
@@ -996,6 +1039,7 @@ function registerIpc() {
     return tx(x);
   });
   ipcMain.handle("po:updateStatus", (_, x) => {
+    requirePermission(x.actorId, "purchase.edit");
     const po = db.prepare("SELECT * FROM po_orders WHERE id=?").get(x.id);
     if (!po) throw new Error("Purchase order not found");
     if (!["DRAFT", "SENT", "CANCELLED"].includes(x.status)) throw new Error("Invalid status transition");
@@ -1004,6 +1048,7 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle("po:receive", (_, x) => {
+    requirePermission(x.actorId, "purchase.create");
     const tx = db.transaction(v => {
       const po = db.prepare("SELECT * FROM po_orders WHERE id=?").get(v.po_id);
       if (!po) throw new Error("Purchase order not found");
@@ -1039,6 +1084,7 @@ function registerIpc() {
     FROM purchase_returns pr JOIN purchases p ON p.id=pr.purchase_id LEFT JOIN suppliers s ON s.id=pr.supplier_id
     ORDER BY pr.id DESC LIMIT 200`).all());
   ipcMain.handle("purchaseReturns:create", (_, x) => {
+    requirePermission(x.actorId, "purchase.return");
     const tx = db.transaction(v => {
       const purchase = db.prepare("SELECT * FROM purchases WHERE id=?").get(v.purchase_id);
       if (!purchase) throw new Error("Original purchase not found");
@@ -1071,6 +1117,7 @@ function registerIpc() {
 
   // ---- Payments (customer receipts / supplier payments) ---------------------
   ipcMain.handle("payments:add", (_, x) => {
+    requirePermission(x.actorId, x.type === "customer" ? "customers.payment" : "suppliers.payment");
     const tx = db.transaction(v => {
       const amt = Number(v.amount || 0);
       if (amt <= 0) throw new Error("Amount must be greater than zero");
@@ -1093,6 +1140,7 @@ function registerIpc() {
   // ---- Expenses / Recurring / Budgets ---------------------------------------
   ipcMain.handle("expenses:list", () => db.prepare("SELECT * FROM expenses ORDER BY id DESC LIMIT 300").all());
   ipcMain.handle("expenses:add", (_, x) => {
+    requirePermission(x.actorId, "expenses.create");
     const tx = db.transaction(v => {
       const no = nextNo("EXP");
       const r = db.prepare("INSERT INTO expenses(expense_no,title,category,amount,payment_method,paid_by,receipt_path,note,expense_date,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
@@ -1142,6 +1190,7 @@ function registerIpc() {
     return { ...reg, cashIn, cashOut, expected: reg.opening_cash + cashIn - cashOut, transactions: txs };
   });
   ipcMain.handle("cash:open", (_, x) => {
+    requirePermission(x.actorId, "cash.manage");
     if (currentOpenRegister()) throw new Error("A cash register is already open. Close it before opening a new one.");
     const r = db.prepare("INSERT INTO cash_registers(business_date,opening_cash,opened_by,opened_at,status) VALUES(?,?,?,?,?)")
       .run(today(), Number(x.opening_cash || 0), x.actorId || null, now(), "OPEN");
@@ -1149,6 +1198,7 @@ function registerIpc() {
     return r.lastInsertRowid;
   });
   ipcMain.handle("cash:transaction", (_, x) => {
+    requirePermission(x.actorId, "cash.manage");
     const reg = currentOpenRegister();
     if (!reg) throw new Error("No cash register is open");
     const category = x.category || (x.direction === "IN" ? "OTHER_IN" : "OTHER_OUT");
@@ -1158,6 +1208,7 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle("cash:close", (_, x) => {
+    requirePermission(x.actorId, "cash.manage");
     const tx = db.transaction(v => {
       const reg = currentOpenRegister();
       if (!reg) throw new Error("No cash register is open");
@@ -1194,6 +1245,7 @@ function registerIpc() {
   ipcMain.handle("petty:balance", () => db.prepare("SELECT COALESCE(SUM(CASE WHEN direction='IN' THEN amount ELSE -amount END),0) v FROM petty_cash").get().v);
 
   ipcMain.handle("cash:transfer", (_, x) => {
+    requirePermission(x.actorId, "cash.manage");
     const tx = db.transaction(v => {
       const no = nextNo("CT");
       const amt = Number(v.amount);
@@ -1229,7 +1281,15 @@ function registerIpc() {
 
   ipcMain.handle("permissions:definitions", () => PERMISSIONS);
   ipcMain.handle("permissions:forRole", (_, role) => db.prepare("SELECT permission,allowed FROM role_permissions WHERE role=?").all(role));
+  ipcMain.handle("permissions:matrix", () => ({
+    permissions: PERMISSIONS,
+    roles: Object.keys(DEFAULT_ROLE_PERMISSIONS),
+    rows: db.prepare("SELECT role,permission,allowed FROM role_permissions").all(),
+  }));
   ipcMain.handle("permissions:update", (_, x) => {
+    requirePermission(x.actorId, "users.manage");
+    if (x.role === "Owner" && x.permission === "users.manage" && !x.allowed)
+      throw new Error("Cannot revoke the Owner role's user-management permission — this would lock every administrator out of the permission matrix.");
     db.prepare("INSERT INTO role_permissions(role,permission,allowed) VALUES(?,?,?) ON CONFLICT(role,permission) DO UPDATE SET allowed=excluded.allowed")
       .run(x.role, x.permission, x.allowed ? 1 : 0);
     audit(x.actorId, "PERMISSION_CHANGED", "role", null, { role: x.role, permission: x.permission, allowed: x.allowed });

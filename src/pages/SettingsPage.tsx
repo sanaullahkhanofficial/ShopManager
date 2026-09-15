@@ -14,7 +14,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ui/Toast";
 import { ReceiptPreview, type ReceiptData } from "../components/ReceiptPreview";
-import type { Settings, Location } from "../types";
+import type { AuthUser, Settings, Location } from "../types";
 
 const TABS = [
   { id: "business", label: "Business Profile", icon: Building2 },
@@ -42,7 +42,7 @@ const SAMPLE_RECEIPT: ReceiptData = {
   subtotal: 65000, discount: 1000, total: 64000, paymentMethod: "Cash", paid: 64000, remaining: 0,
 };
 
-export function SettingsPage({ value, onSaved }: { value: Settings; onSaved: (s: Settings) => void }) {
+export function SettingsPage({ value, onSaved, user }: { value: Settings; onSaved: (s: Settings) => void; user: AuthUser }) {
   const { push } = useToast();
   const [x, setX] = useState<Settings>(value);
   const [tab, setTab] = useState("business");
@@ -52,7 +52,7 @@ export function SettingsPage({ value, onSaved }: { value: Settings; onSaved: (s:
   const update = (patch: Record<string, string>) => setX((v) => ({ ...v, ...patch } as Settings));
 
   async function save() {
-    const s = await api.settingsUpdate(x) as Settings;
+    const s = await api.settingsUpdate({ ...x, actorId: user.id }) as Settings;
     onSaved(s);
     push("success", "Settings saved");
   }

@@ -51,7 +51,7 @@ function assert(cond, label) {
   } catch (e) { console.log("PASS: transfer exceeding source stock rejected —", e.message); }
 
   // --- Purchase Orders: draft -> receive (partial) -> receive (rest) -------
-  call("suppliers:save", { name: "Al-Rahim Traders", ntn: "1234567-8", payment_term_days: 30 });
+  call("suppliers:save", { name: "Al-Rahim Traders", ntn: "1234567-8", payment_term_days: 30, actorId: 1 });
   const supplier = call("suppliers:list")[0];
   const po = call("po:create", { supplier_id: supplier.id, items: [{ product_id: product.id, quantity: 100, rate: product.purchase_price }], actorId: 1 });
   assert(/^PO-\d{8}-0001$/.test(po.po_no), `PO numbered correctly (${po.po_no})`);
@@ -118,7 +118,7 @@ function assert(cond, label) {
   assert(cashAfterRent === cashBeforeRent - 25000, "the recurring cash expense reduces the cash register");
 
   // --- Aging (FIFO) -----------------------------------------------------------
-  call("customers:save", { name: "Aging Test Customer", customer_type: "Wholesale" });
+  call("customers:save", { name: "Aging Test Customer", customer_type: "Wholesale", actorId: 1 });
   const agingCustomer = call("customers:list").find((c) => c.name === "Aging Test Customer");
   const oldSale = call("sales:create", { customer_id: agingCustomer.id, items: [{ product_id: product.id, quantity: 1, rate: 50000 }], paid: 0, payment_method: "Credit", actorId: 1 });
   // Backdate the credit entry to simulate an old debt (95 days) for aging.

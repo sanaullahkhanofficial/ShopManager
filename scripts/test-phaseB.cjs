@@ -30,12 +30,12 @@ function assert(cond, label) {
   const product = call("products:list")[0];
 
   // --- Configurable invoice prefixes ------------------------------------
-  call("settings:update", { invoice_prefix: "SLS", invoice_prefix_purchase: "BUY" });
+  call("settings:update", { invoice_prefix: "SLS", invoice_prefix_purchase: "BUY", actorId: 1 });
   call("products:adjust", { product_id: product.id, quantity: 100, unit_cost: product.purchase_price, reason: "Opening", actorId: 1 });
   const sale = call("sales:create", { items: [{ product_id: product.id, quantity: 1, rate: 500 }], paid: 500, payment_method: "Cash", actorId: 1 });
   assert(sale.invoice_no.startsWith("SLS-"), `sale invoice number honors the configured Sales prefix (${sale.invoice_no})`);
 
-  call("suppliers:save", { name: "Test Supplier" });
+  call("suppliers:save", { name: "Test Supplier", actorId: 1 });
   const supplier = call("suppliers:list")[0];
   const purchase = call("purchases:create", { supplier_id: supplier.id, items: [{ product_id: product.id, quantity: 5, rate: 400 }], paid: 2000, payment_method: "Cash", actorId: 1 });
   assert(purchase.invoice_no.startsWith("BUY-"), `purchase invoice number honors the configured Purchase prefix (${purchase.invoice_no})`);
@@ -46,18 +46,18 @@ function assert(cond, label) {
     console.error("FAIL: negative stock should be denied by default"); failed = true;
   } catch (e) { console.log("PASS: negative stock denied while allow_negative_stock=0 —", e.message); }
 
-  call("settings:update", { allow_negative_stock: "1" });
+  call("settings:update", { allow_negative_stock: "1", actorId: 1 });
   call("products:adjust", { product_id: product.id, quantity: -999999, reason: "test", actorId: 1 });
   const afterNegative = call("products:list").find((p) => p.id === product.id).stock;
   assert(afterNegative < 0, `stock can go negative once allow_negative_stock=1 (stock=${afterNegative})`);
-  call("settings:update", { allow_negative_stock: "0" });
+  call("settings:update", { allow_negative_stock: "0", actorId: 1 });
 
   // --- Notification toggles -----------------------------------------------
-  call("settings:update", { notify_low_stock: "0" });
+  call("settings:update", { notify_low_stock: "0", actorId: 1 });
   call("products:save", { name: "Toggle Test Item", category_id: product.category_id, min_stock: 999999, package_unit: "KG", stock: 1, purchase_price: 10, retail_price: 20, wholesale_price: 18, actorId: 1 });
   const notifsDisabled = call("notifications:refresh");
   assert(!notifsDisabled.some((n) => n.title.includes("Toggle Test Item")), "no LOW_STOCK notification is generated while notify_low_stock=0");
-  call("settings:update", { notify_low_stock: "1" });
+  call("settings:update", { notify_low_stock: "1", actorId: 1 });
   const notifsEnabled = call("notifications:refresh");
   assert(notifsEnabled.some((n) => n.title.includes("Toggle Test Item")), "LOW_STOCK notification generates again once notify_low_stock=1");
 

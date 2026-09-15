@@ -373,6 +373,23 @@ export interface AppNotification {
   created_at: string;
 }
 
+export interface AuditLogEntry {
+  id: number;
+  user_id: number | null;
+  user_name: string | null;
+  action: string;
+  entity: string | null;
+  entity_id: number | null;
+  details: string | null;
+  created_at: string;
+}
+
+export interface PermissionMatrix {
+  permissions: string[];
+  roles: Role[];
+  rows: Array<{ role: Role; permission: string; allowed: number }>;
+}
+
 export interface Location {
   id: number;
   name: string;

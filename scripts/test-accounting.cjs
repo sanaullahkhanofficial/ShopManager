@@ -53,7 +53,7 @@ function assertEqual(actual, expected, label) {
   call("sales:create", { items: [{ product_id: p1.id, quantity: 1, rate: 100000 }], paid: 100000, payment_method: "Cash", mode: "Retail", actorId: 1 });
 
   // Credit sale Rs. 80,000 to a customer
-  call("customers:save", { name: "Ali Khan General Store", customer_type: "Wholesale" });
+  call("customers:save", { name: "Ali Khan General Store", customer_type: "Wholesale", actorId: 1 });
   const customer = call("customers:list")[0];
   call("sales:create", { customer_id: customer.id, items: [{ product_id: p2.id, quantity: 1, rate: 80000 }], paid: 0, payment_method: "Credit", mode: "Wholesale", actorId: 1 });
 
@@ -61,7 +61,7 @@ function assertEqual(actual, expected, label) {
   call("payments:add", { type: "customer", entity_id: customer.id, amount: 20000, payment_method: "Cash", actorId: 1 });
 
   // Cash purchase Rs. 40,000
-  call("suppliers:save", { name: "Fatima Fertilizer Co." });
+  call("suppliers:save", { name: "Fatima Fertilizer Co.", actorId: 1 });
   const supplier = call("suppliers:list")[0];
   call("purchases:create", { supplier_id: supplier.id, items: [{ product_id: p1.id, quantity: 10, rate: 4000 }], paid: 40000, payment_method: "Cash", actorId: 1 });
 

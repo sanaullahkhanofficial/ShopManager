@@ -703,6 +703,79 @@ inert form fields:
   badges, and both customer/supplier ranked tables — render correctly
   with zero console errors.
 
+## Phase M — Users & Permissions v2 (this pass, real, tested)
+
+- **Real IPC-boundary permission enforcement — the headline change.** Since
+  Phase 0 the `role_permissions` matrix (25 permissions × 8 roles, not the
+  24 earlier phases assumed — the catalog always had `printer.manage` as a
+  25th entry) existed and was readable/writable, but nothing ever checked
+  it: any logged-in user could call any handler. A new `requirePermission
+  (actorId, permission)` helper now gates every money-moving and
+  administrative IPC channel that maps 1:1 to a real permission — sales
+  create/void/return, purchase create/edit/return (including the PO
+  create/receive paths), inventory adjustments and transfers, customer/
+  supplier create and payments, cash open/close/transaction/transfer,
+  expense creation, user management, permission updates, and settings
+  changes. A denied call throws a real error (`Permission denied: role
+  "X" cannot "Y"`) rather than silently no-opping, so a blocked user sees
+  an honest failure. Read-only list/get channels are intentionally left
+  ungated — there's no "view a list" permission in the catalog for them to
+  map to, and full page-level nav gating is a separate, larger UI project
+  not attempted this phase (documented honestly below rather than faked).
+- **A real safety rail**: revoking the Owner role's own `users.manage`
+  permission is rejected server-side — without it, an admin could lock
+  every administrator out of the permission matrix with no way back in
+  short of editing the database directly.
+- **The permission matrix finally has a real editor UI** — a new
+  `permissions:matrix` handler returns the whole role×permission grid in
+  one call; the Permission Matrix tab renders it grouped by module (Sales,
+  Purchases, Inventory, Customers, Suppliers, Cash, Expenses, Reports,
+  Users, Settings, Printer) with a real action underneath each, a checkbox
+  per role, and every toggle calling the now-enforced `permissions:update`
+  immediately — this is the same matrix the backend actually checks, not
+  a separate cosmetic copy.
+- **Real Activity & Login Log** — `audit_logs` and `audit:list` have
+  existed since the original foundation and already recorded most write
+  actions; the login path only ever recorded successes. Failed login
+  attempts are now recorded too (`LOGIN_FAILED`, with the attempted
+  username, still resolving to the real user row when one matches), and a
+  new Activity Log tab surfaces the whole table with color-coded action
+  badges and human-readable details — turning an always-real but
+  invisible table into an actual audit trail an owner can read.
+- **Users v2**: activate/deactivate (new `users:setStatus`, matching the
+  same Switch-toggle pattern every other entity page uses — a
+  deactivated user genuinely can't log in, verified) and a real password
+  reset flow (`users:resetPassword` reshaped to take `{id, password,
+  actorId}` instead of positional args, since nothing called it before
+  this phase), both gated under `users.manage` like every other admin
+  action.
+- **Scope decision, stated plainly**: enforcement covers the write paths
+  that map to a named permission; it does not yet hide sidebar nav items
+  or in-page buttons per role (a Cashier's UI still shows, say, an
+  "Add Expense" button that the backend will now correctly reject) — the
+  backend is the real gate today, client-side hiding is a follow-on
+  polish pass, not pretended to be done here.
+- Verified with `scripts/test-phaseM.cjs` (19 assertions: a Cashier is
+  genuinely blocked from expense creation, settings changes, and user
+  creation — with the settings change confirmed to have had zero effect,
+  not just a thrown error; a call with no `actorId` at all is denied, not
+  silently allowed; granting a permission takes effect immediately;
+  revoking Owner's `users.manage` is rejected and the permission is
+  confirmed still intact afterward; `permissions:matrix` returns the full
+  real grid; deactivating a user really blocks login; a password reset
+  really changes what logs in; and both successful and failed logins are
+  audited with the real user name joined in) — all pass, plus all
+  thirteen earlier suites re-run clean (three older test scripts —
+  `test-accounting.cjs`, `test-phase0.cjs`, `test-phaseB.cjs` — needed a
+  one-line `actorId` added to a few setup calls that predated the
+  actorId convention; every real usage from the actual UI already passed
+  it correctly, confirmed by reading every call site before gating it).
+  Visual smoke test confirms the Users tab (list, status toggle, Reset
+  Password modal), the Permission Matrix (grouped by module, all 8 role
+  columns, live toggling), and the Activity Log (color-coded LOGIN/
+  LOGIN_FAILED/PERMISSION_CHANGED badges with readable details) all
+  render correctly with zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -720,10 +793,12 @@ These are named explicitly so nobody mistakes silence for "it exists":
   the browser print dialog (`window.print()`), which is the documented
   fallback for the web/PWA path (Section 76); real USB ESC/POS device
   integration for the desktop build does not exist.
-- **Granular permission *enforcement*** (Section 39). The `role_permissions`
-  matrix now exists and is readable/writable (Phase 0), but no IPC handler
-  actually checks it yet — any logged-in user can still call any handler.
-  Real enforcement + the editor UI land in Phase M.
+- **Client-side, per-role UI gating** (Section 39). Phase M added real
+  server-side enforcement on every money-moving/administrative IPC channel
+  plus the matrix editor UI, but nav items and in-page buttons still
+  render the same for every role — a denied action fails loudly at the
+  backend rather than being hidden from the menu in advance. Hiding
+  sidebar/button-level access per role is a follow-on polish pass.
 - **AI Business Assistant** (Sections 59–60) — no page, no query layer.
 - **Full UI localization.** The Urdu toggle covers navigation/chrome and
   product names, not every label in every form.
@@ -738,10 +813,10 @@ Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
 → **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 → **J**
-Expenses v2 → **K** Dashboard v2 → **L** Reports suite — all done (see
-sections above). Next: **M** Users & Permissions v2 (real module×action
-matrix enforcement, activity/login logs) → **N** Invoice/Printer Settings
-+ 58mm dual-token + real barcode rendering + receipt polish to match the
+Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M** Users &
+Permissions v2 — all done (see sections above). Next: **N** Invoice/
+Printer Settings + 58mm dual-token + real barcode rendering + receipt
+polish to match the
 physical mockup.
 
 ## Still not started after Phase 0/A–N
