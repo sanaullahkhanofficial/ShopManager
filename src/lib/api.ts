@@ -82,6 +82,19 @@ export const api = {
   expensesList: () => invoke("expenses:list"),
   expensesAdd: (x: Record<string, unknown>) => invoke("expenses:add", x),
 
+  expenseCategoriesList: () => invoke("expenseCategories:list"),
+  expenseCategoriesSave: (x: Record<string, unknown>) => invoke("expenseCategories:save", x),
+
+  recurringExpensesList: () => invoke("recurringExpenses:list"),
+  recurringExpensesSave: (x: Record<string, unknown>) => invoke("recurringExpenses:save", x),
+  recurringExpensesRunDue: () => invoke("recurringExpenses:runDue"),
+
+  budgetsList: (periodMonth: string) => invoke("budgets:list", periodMonth),
+  budgetsSet: (x: Record<string, unknown>) => invoke("budgets:set", x),
+  budgetsSummary: (periodMonth: string) => invoke("budgets:summary", periodMonth),
+
+  receiptsPick: () => invoke<string | null>("receipts:pick"),
+
   cashCurrent: () => invoke("cash:current"),
   cashOpen: (x: Record<string, unknown>) => invoke("cash:open", x),
   cashTransaction: (x: Record<string, unknown>) => invoke("cash:transaction", x),

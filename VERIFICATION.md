@@ -217,6 +217,30 @@ any other network resource.
   correctly with zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase J checks (this session)
+- `scripts/test-phaseJ.cjs` (`npm run test:phaseJ`) — 10 assertions: all 12
+  default expense categories are seeded and start active, a new category
+  can be added and an existing one deactivated, an attached receipt path
+  persists on the expense row, `budgets:summary` correctly sums real
+  spend against a set budget and reports it over-budget once spend
+  exceeds it, a category with spend but no set budget still appears at
+  budget=0 rather than being hidden, and an unrelated month returns no
+  rows. All passed. The ten earlier suites (`test-accounting`,
+  `test-phase0`, `test-phaseB` through `test-phaseI`) were re-run against
+  the Phase J schema and still pass unchanged — recurring-expense due
+  posting itself remains covered by `test-phase0.cjs`.
+- Visual smoke test (Playwright, `window.api` stubbed with realistic
+  expenses/categories/recurring/budget data): the Expenses tab (Attach
+  Receipt flow, success toast, the receipt View modal), the Recurring tab
+  (add form, Run Due Now button), the Budgets tab (live spend, red
+  over-budget styling and warning), and the Categories tab (toggle
+  switches, add form) all render correctly. The one console message seen
+  ("Not allowed to load local resource: file:///fake/receipt-1.jpg") is
+  the sandboxed test browser blocking a `file://` image load — the same
+  pre-existing pattern Products/Settings already use for image previews,
+  which works normally inside the real Electron window; not a regression.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

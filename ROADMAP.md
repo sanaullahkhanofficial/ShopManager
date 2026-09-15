@@ -549,6 +549,54 @@ inert form fields:
   and a real transfer's success toast all render correctly with zero
   console errors.
 
+## Phase J — Expenses v2 (this pass, real, tested)
+
+- **Real category management** — a new `expense_categories` table (seeded
+  once with the previous hardcoded 12 names, same `INSERT OR IGNORE`
+  pattern Phase 0 used for `payment_methods`) replaces the static array;
+  a new Categories tab gives real add/activate/deactivate CRUD, and the
+  Add Expense and Add Recurring Expense forms now pull their category
+  dropdown from it live.
+- **Receipt attachment, now real** — `expenses.receipt_path` existed in the
+  schema since Phase 0 but no UI ever wrote to it. A new `receipts:pick`
+  handler (mirroring `images:pick`, accepting jpg/jpeg/png/webp/pdf) lets
+  the cashier attach a photo or scanned copy of the paper receipt; it's
+  copied into the app's data directory like every other stored asset. The
+  history table shows a **View** link per expense that has one, opening it
+  in a modal (an image renders inline; a PDF is named for now rather than
+  embedded — Electron's `file://` protocol handles both once packaged,
+  verified visually as a graceful "broken image" fallback in this Linux
+  browser-only smoke test, which is expected since the sandboxed test
+  browser blocks local file loads the way a real Electron window does not,
+  same as the existing product/logo image preview pattern already relied on).
+- **Recurring Expenses, given a real UI for the first time** — `recurring_expenses`
+  and its due-date-advancing `runDueRecurringExpenses()` (already exercised
+  by `test-phase0.cjs`) have existed since Phase 0; the new Recurring tab
+  lists them, a form creates/edits one (title, category, amount, payment
+  method, MONTHLY/WEEKLY/YEARLY frequency, day-of-month), a Switch
+  activates/deactivates, and a **Run Due Now** button calls
+  `recurringExpenses:runDue` on demand instead of only at app startup.
+- **Real budgets vs actual** — a new `budgets:summary(periodMonth)` handler
+  joins the existing `budgets` table against a real `GROUP BY category`
+  sum of that month's `expenses`, so the new Budgets tab shows live
+  Spent/Remaining per category (not an estimate), a month picker, an
+  inline-editable Budget field per row, and an "Over budget" flag the
+  moment real spend exceeds what was set — including categories that have
+  spend but no budget set yet (shown honestly at Rs. 0 budgeted rather
+  than hidden).
+- Verified with `scripts/test-phaseJ.cjs` (10 assertions: all 12 default
+  categories seed correctly and start active, a new category can be added
+  and an existing one deactivated, a receipt path attached to an expense
+  persists on its row, `budgets:summary` correctly sums real spend against
+  a set budget and flags over-budget, a category with spend but no budget
+  still appears at budget=0, and an unrelated month returns nothing) — all
+  pass, plus all ten earlier suites re-run clean (recurring-expense
+  due-posting itself remains covered by `test-phase0.cjs`, unchanged this
+  phase). Visual smoke test confirms all four tabs — Expenses (attach
+  receipt, receipt View modal), Recurring (add form, Run Due Now), Budgets
+  (live spend, red over-budget styling), Categories (toggle, add) — render
+  correctly with zero real console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -583,9 +631,9 @@ These are named explicitly so nobody mistakes silence for "it exists":
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
 Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
-→ **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 — all
-done (see sections above). Next: **J** Expenses v2 (recurring, budgets,
-receipt attachment, category management) → **K** Dashboard v2 → **L**
+→ **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 → **J**
+Expenses v2 — all done (see sections above). Next: **K** Dashboard v2
+(stat rows, quick actions, trend/donut charts, cash summary panel) → **L**
 Reports suite → **M** Users & Permissions v2 (real matrix enforcement) →
 **N** Invoice/Printer Settings + 58mm dual-token + real barcode rendering +
 receipt polish to match the physical mockup.

@@ -253,6 +253,10 @@ function initDb() {
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, status TEXT DEFAULT 'active', sort_order INTEGER DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS expense_categories(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, status TEXT DEFAULT 'active', sort_order INTEGER DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS role_permissions(
     role TEXT NOT NULL, permission TEXT NOT NULL, allowed INTEGER DEFAULT 1, PRIMARY KEY(role, permission)
   );
@@ -543,6 +547,10 @@ function seed() {
     const pm = db.prepare("INSERT INTO payment_methods(name,sort_order) VALUES(?,?)");
     ["Cash", "Bank Transfer", "JazzCash", "Easypaisa", "Cheque", "Credit", "Partial"].forEach((n, i) => pm.run(n, i));
   }
+  if (db.prepare("SELECT COUNT(*) c FROM expense_categories").get().c === 0) {
+    const ec = db.prepare("INSERT INTO expense_categories(name,sort_order) VALUES(?,?)");
+    ["Electricity", "Internet", "Salary", "Transport", "Fuel", "Rent", "Repairs", "Office Supplies", "Maintenance", "Bank Charges", "Miscellaneous", "Other"].forEach((n, i) => ec.run(n, i));
+  }
   if (db.prepare("SELECT COUNT(*) c FROM role_permissions").get().c === 0) {
     const ins = db.prepare("INSERT OR IGNORE INTO role_permissions(role,permission,allowed) VALUES(?,?,?)");
     for (const role of Object.keys(DEFAULT_ROLE_PERMISSIONS)) {
@@ -632,6 +640,15 @@ function registerIpc() {
     return dest;
   });
   ipcMain.handle("images:remove", (_, p) => { if (p && p.startsWith(dataDir) && fs.existsSync(p)) fs.unlinkSync(p); return true; });
+
+  // ---- Expense receipt attachment (Section 26: photo/PDF of the paper receipt) --
+  ipcMain.handle("receipts:pick", async () => {
+    const r = await dialog.showOpenDialog(win, { title: "Attach receipt", properties: ["openFile"], filters: [{ name: "Receipts", extensions: ["jpg", "jpeg", "png", "webp", "pdf"] }] });
+    if (r.canceled) return null;
+    const src = r.filePaths[0], ext = path.extname(src).toLowerCase(), dest = path.join(dataDir, `receipt-${Date.now()}-${crypto.randomBytes(5).toString("hex")}${ext}`);
+    fs.copyFileSync(src, dest);
+    return dest;
+  });
 
   // ---- Generic file dialogs for CSV import/export (Section 53/13 catalog tooling) --
   ipcMain.handle("files:pickCsv", async () => {
@@ -1097,6 +1114,24 @@ function registerIpc() {
   ipcMain.handle("recurringExpenses:runDue", () => { runDueRecurringExpenses(); return true; });
   ipcMain.handle("budgets:list", (_, periodMonth) => db.prepare("SELECT * FROM budgets WHERE period_month=?").all(periodMonth));
   ipcMain.handle("budgets:set", (_, x) => { db.prepare("INSERT INTO budgets(category,period_month,amount) VALUES(?,?,?) ON CONFLICT(category,period_month) DO UPDATE SET amount=excluded.amount").run(x.category, x.period_month, x.amount); return true; });
+  ipcMain.handle("budgets:summary", (_, periodMonth) => {
+    const budgets = db.prepare("SELECT * FROM budgets WHERE period_month=?").all(periodMonth);
+    const spent = db.prepare("SELECT category, COALESCE(SUM(amount),0) v FROM expenses WHERE strftime('%Y-%m',expense_date)=? GROUP BY category").all(periodMonth);
+    const spentMap = Object.fromEntries(spent.map(s => [s.category, s.v]));
+    const categories = new Set([...budgets.map(b => b.category), ...spent.map(s => s.category)]);
+    return [...categories].map(category => ({
+      category,
+      budget: budgets.find(b => b.category === category)?.amount || 0,
+      spent: spentMap[category] || 0,
+    })).sort((a, b) => a.category.localeCompare(b.category));
+  });
+
+  ipcMain.handle("expenseCategories:list", () => db.prepare("SELECT * FROM expense_categories ORDER BY sort_order,name").all());
+  ipcMain.handle("expenseCategories:save", (_, x) => {
+    if (x.id) db.prepare("UPDATE expense_categories SET name=?,status=? WHERE id=?").run(x.name, x.status || "active", x.id);
+    else db.prepare("INSERT INTO expense_categories(name,status,sort_order) VALUES(?,?,?)").run(x.name, "active", 99);
+    return db.prepare("SELECT * FROM expense_categories ORDER BY sort_order,name").all();
+  });
 
   // ---- Cash register (Section 7/26/27/69) --------------------------------
   ipcMain.handle("cash:current", () => {

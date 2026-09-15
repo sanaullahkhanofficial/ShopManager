@@ -213,8 +213,44 @@ export interface Expense {
   amount: number;
   payment_method: PaymentMethod;
   paid_by: string;
+  receipt_path: string;
   note: string;
   expense_date: string;
+  created_at: string;
+}
+
+export interface ExpenseCategory {
+  id: number;
+  name: string;
+  status: string;
+  sort_order: number;
+}
+
+export type RecurringFrequency = "MONTHLY" | "WEEKLY" | "YEARLY";
+
+export interface RecurringExpense {
+  id: number;
+  title: string;
+  category: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  frequency: RecurringFrequency;
+  day_of_month: number;
+  next_run_date: string;
+  status: string;
+  created_at: string;
+}
+
+export interface Budget {
+  category: string;
+  period_month: string;
+  amount: number;
+}
+
+export interface BudgetSummaryRow {
+  category: string;
+  budget: number;
+  spent: number;
 }
 
 export interface CashRegisterState {
