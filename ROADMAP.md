@@ -226,6 +226,54 @@ inert form fields:
   A — screenshots confirm every tab renders correctly, including the
   invoice preview modal showing both receipt copies side by side.
 
+## Phase C — Products/Inventory v2 (this pass, real, tested)
+
+- **Paginated data table** — `DataTable` gained built-in client-side
+  pagination (page-size selector, page numbers) as a generic, reusable
+  prop, matching the reference design's "Showing 1 to 20 of 22" pattern;
+  every future table gets this for free.
+- **Tabbed Add/Edit panel** ("Product Details" / "Pricing & Stock"),
+  always visible next to the table rather than a modal, matching the
+  reference layout — editing existing stock explicitly says to use Stock
+  Adjustment/Transfer instead of the price form, so nobody expects editing
+  min/max fields to move physical stock.
+- **Real barcode rendering** (`jsbarcode`, CODE128, self-hosted — no CDN)
+  via a reusable `Barcode` component. "Generate Barcodes" backfills any
+  product missing one (defaulting to its SKU) and opens a printable label
+  sheet.
+- **CSV import/export** (`papaparse`, per the owner's "CSV first" decision)
+  — export produces a CSV of the current catalog; import matches existing
+  products by SKU (updates them) or creates new ones, auto-creating
+  missing categories by name. Both go through real native file dialogs
+  (new `files:pickCsv`/`files:saveText` IPC).
+- **Print List** and a reusable `PrintableList` component (A4-oriented,
+  shares the same hidden-until-print mechanism as receipts via a new
+  `.print-a4` CSS modifier) — the same component every future "Print
+  Customer List"/"Print Supplier List" button will reuse.
+- **Bulk price update** — a modal listing every product with inline-editable
+  retail/wholesale prices, saved in one batch.
+- **Stock Adjustment and Stock Transfer as real dedicated pages** (not
+  modals), reachable through a new collapsible sidebar group — the first
+  real use of multi-item nav groups (built as reusable infrastructure in
+  Sidebar.tsx). Stock Transfer correctly no-ops with an explanatory message
+  until a second location exists and multi-location is turned on.
+- **Real per-location stock display** (`stock:byLocation`) surfaced in both
+  new pages.
+- **Fixed a real bug found while testing this phase**: `products:save`'s
+  update path previously overwrote every column positionally, so a partial
+  payload like `{id, status: "inactive"}` (used by the new product
+  deactivate action) would have nulled out the product's name, category,
+  prices, etc. — instead of throwing loudly (better-sqlite3 rejects
+  `undefined` binds) it would have silently corrupted the row. Fixed by
+  merging onto the existing row before writing; covered by a new test
+  asserting deactivation doesn't touch other fields.
+- Verified with `scripts/test-phaseC.cjs` (stock movement history +
+  filtering, idempotent barcode generation, bulk price update, soft
+  deactivate) — all pass, plus the three earlier suites re-run clean. Visual
+  smoke test confirms Products (both form tabs), Stock Adjustment, and
+  Stock Transfer all render correctly with zero console errors, including
+  the newly-expandable sidebar group.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":

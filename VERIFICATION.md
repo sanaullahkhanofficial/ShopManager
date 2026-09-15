@@ -79,6 +79,24 @@ any other network resource.
   Customer/Office receipt preview all look correct.
 - `npx tsc --noEmit` and `npm run build:web` both pass.
 
+## Phase C checks (this session)
+- `scripts/test-phaseC.cjs` (`npm run test:phaseC`) — confirms:
+  `stockMovements:list` returns and correctly filters/orders movement
+  history with product names joined in; `products:ensureBarcodes`
+  generates barcodes for products missing one and is idempotent on a
+  second run; `products:bulkUpdatePrices` applies to multiple products in
+  one call; and — importantly — deactivating a product via a partial
+  `products:save({id, status})` payload no longer corrupts its other
+  fields (this test caught a real bug in the existing update path, now
+  fixed). All passed. `test-accounting.cjs`, `test-phase0.cjs` and
+  `test-phaseB.cjs` were re-run and still pass unchanged.
+- Visual smoke test (Playwright, `window.api` stubbed): Products page
+  (table + both form tabs populated via Edit), Stock Adjustment, and Stock
+  Transfer all render correctly with zero console errors, including the
+  newly-expandable "Products / Inventory" sidebar group.
+- `npx tsc --noEmit` and `npm run build:web` both pass, including the new
+  `jsbarcode`/`papaparse` dependencies.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

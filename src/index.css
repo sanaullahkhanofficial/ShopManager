@@ -60,9 +60,16 @@
   body * { visibility: hidden; }
   #print-root, #print-root * { visibility: visible; }
   #print-root { position: absolute; left: 0; top: 0; width: 58mm; }
+  #print-root.print-a4 { width: 190mm; }
   .receipt-copy { page-break-after: always; }
   .receipt-copy:last-child { page-break-after: auto; }
 }
+.print-list { font-family: Inter, sans-serif; color: #111; padding: 6mm; }
+.print-list h1 { font-size: 16px; margin: 0 0 2px; }
+.print-list p { font-size: 11px; color: #555; margin: 0 0 8px; }
+.print-list table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.print-list th, .print-list td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+.print-list th { background: #f3f3f3; }
 .receipt-copy {
   width: 58mm;
   font-family: "Courier New", monospace;

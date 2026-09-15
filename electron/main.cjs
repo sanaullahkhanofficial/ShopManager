@@ -623,6 +623,19 @@ function registerIpc() {
   });
   ipcMain.handle("images:remove", (_, p) => { if (p && p.startsWith(dataDir) && fs.existsSync(p)) fs.unlinkSync(p); return true; });
 
+  // ---- Generic file dialogs for CSV import/export (Section 53/13 catalog tooling) --
+  ipcMain.handle("files:pickCsv", async () => {
+    const r = await dialog.showOpenDialog(win, { title: "Choose a CSV file", properties: ["openFile"], filters: [{ name: "CSV", extensions: ["csv"] }] });
+    if (r.canceled) return null;
+    return { name: path.basename(r.filePaths[0]), content: fs.readFileSync(r.filePaths[0], "utf8") };
+  });
+  ipcMain.handle("files:saveText", async (_, x) => {
+    const out = await dialog.showSaveDialog(win, { title: x.title || "Save File", defaultPath: x.defaultPath, filters: x.filters || [{ name: "CSV", extensions: ["csv"] }] });
+    if (out.canceled) return null;
+    fs.writeFileSync(out.filePath, x.content, "utf8");
+    return out.filePath;
+  });
+
   // ---- Locations ----------------------------------------------------------
   ipcMain.handle("locations:list", () => db.prepare("SELECT * FROM locations ORDER BY name").all());
   ipcMain.handle("locations:save", (_, x) => {
@@ -656,13 +669,19 @@ function registerIpc() {
   ipcMain.handle("products:list", () => db.prepare("SELECT p.*,c.name category_name,c.name_urdu category_name_urdu FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.status='active' ORDER BY p.name").all());
   ipcMain.handle("products:save", (_, x) => {
     if (x.id) {
-      const before = db.prepare("SELECT retail_price,wholesale_price FROM products WHERE id=?").get(x.id);
+      // Merge onto the existing row so a partial payload (e.g. just {id, status}
+      // to deactivate a product) never nulls out the fields it didn't send.
+      const existing = db.prepare("SELECT * FROM products WHERE id=?").get(x.id);
+      if (!existing) throw new Error("Product not found");
+      const merged = { ...existing, ...x };
       db.prepare(`UPDATE products SET category_id=?,name=?,name_urdu=?,brand=?,package_size=?,package_unit=?,sku=?,barcode=?,
-        purchase_price=?,retail_price=?,wholesale_price=?,min_stock=?,image_path=? WHERE id=?`)
-        .run(x.category_id, x.name, x.name_urdu || "", x.brand || "", x.package_size || 0, x.package_unit || "", x.sku || null, x.barcode || null,
-          x.purchase_price || 0, x.retail_price || 0, x.wholesale_price || 0, x.min_stock || 0, x.image_path || "", x.id);
-      if (before && (before.retail_price !== Number(x.retail_price) || before.wholesale_price !== Number(x.wholesale_price)))
-        audit(x.actorId, "PRICE_CHANGED", "product", x.id, { before, after: { retail_price: x.retail_price, wholesale_price: x.wholesale_price } });
+        purchase_price=?,retail_price=?,wholesale_price=?,min_stock=?,image_path=?,status=? WHERE id=?`)
+        .run(merged.category_id, merged.name, merged.name_urdu || "", merged.brand || "", merged.package_size || 0, merged.package_unit || "",
+          merged.sku || null, merged.barcode || null, merged.purchase_price || 0, merged.retail_price || 0, merged.wholesale_price || 0,
+          merged.min_stock || 0, merged.image_path || "", merged.status || "active", x.id);
+      if (Number(existing.retail_price) !== Number(merged.retail_price) || Number(existing.wholesale_price) !== Number(merged.wholesale_price))
+        audit(x.actorId, "PRICE_CHANGED", "product", x.id, { before: { retail_price: existing.retail_price, wholesale_price: existing.wholesale_price }, after: { retail_price: merged.retail_price, wholesale_price: merged.wholesale_price } });
+      if (existing.status !== merged.status) audit(x.actorId, merged.status === "active" ? "PRODUCT_REACTIVATED" : "PRODUCT_DEACTIVATED", "product", x.id, { name: merged.name });
     } else {
       const r = db.prepare(`INSERT INTO products(category_id,name,name_urdu,brand,package_size,package_unit,sku,barcode,purchase_price,retail_price,wholesale_price,min_stock,avg_cost,image_path,created_at)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -679,6 +698,34 @@ function registerIpc() {
     applyStock(x.product_id, x.location_id, qty, Number(x.unit_cost || 0), type, "MANUAL", x.reason || "Manual adjustment", x.actorId);
     audit(x.actorId, "STOCK_ADJUSTED", "product", x.product_id, { quantity: qty, reason: x.reason });
     return true;
+  });
+  ipcMain.handle("products:ensureBarcodes", (_, x) => {
+    const rows = db.prepare("SELECT id,sku FROM products WHERE status='active' AND (barcode IS NULL OR barcode='')").all();
+    const upd = db.prepare("UPDATE products SET barcode=? WHERE id=?");
+    rows.forEach((p) => upd.run(p.sku || `PRD${String(p.id).padStart(6, "0")}`, p.id));
+    if (rows.length) audit(x?.actorId, "BARCODES_GENERATED", "product", null, { count: rows.length });
+    return rows.length;
+  });
+  ipcMain.handle("products:bulkUpdatePrices", (_, x) => {
+    const tx = db.transaction((updates) => {
+      const upd = db.prepare("UPDATE products SET retail_price=?, wholesale_price=? WHERE id=?");
+      for (const u of updates) upd.run(u.retail_price, u.wholesale_price, u.id);
+    });
+    tx(x.updates || []);
+    audit(x.actorId, "BULK_PRICE_UPDATE", "product", null, { count: (x.updates || []).length });
+    return true;
+  });
+  ipcMain.handle("stockMovements:list", (_, filters) => {
+    const f = filters || {};
+    const clauses = [];
+    const params = {};
+    if (f.types?.length) { clauses.push(`sm.type IN (${f.types.map((_, i) => `@t${i}`).join(",")})`); f.types.forEach((t, i) => { params[`t${i}`] = t; }); }
+    if (f.productId) { clauses.push("sm.product_id=@productId"); params.productId = f.productId; }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    return db.prepare(`
+      SELECT sm.*, p.name product_name, p.package_unit, l.name location_name
+      FROM stock_movements sm JOIN products p ON p.id=sm.product_id LEFT JOIN locations l ON l.id=sm.location_id
+      ${where} ORDER BY sm.id DESC LIMIT @limit`).all({ ...params, limit: f.limit || 100 });
   });
 
   // ---- Customer groups ------------------------------------------------------

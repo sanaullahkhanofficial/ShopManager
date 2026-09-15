@@ -27,6 +27,14 @@ export const api = {
   productsList: () => invoke("products:list"),
   productsSave: (x: Record<string, unknown>) => invoke("products:save", x),
   productsAdjust: (x: Record<string, unknown>) => invoke("products:adjust", x),
+  stockByLocation: (productId: number) => invoke("stock:byLocation", productId),
+  stockTransfer: (x: Record<string, unknown>) => invoke("stock:transfer", x),
+  stockMovementsList: (filters?: Record<string, unknown>) => invoke("stockMovements:list", filters || {}),
+  productsEnsureBarcodes: (actorId: number) => invoke<number>("products:ensureBarcodes", { actorId }),
+  productsBulkUpdatePrices: (x: Record<string, unknown>) => invoke("products:bulkUpdatePrices", x),
+
+  filesPickCsv: () => invoke<{ name: string; content: string } | null>("files:pickCsv"),
+  filesSaveText: (x: { title?: string; defaultPath?: string; content: string; filters?: Array<{ name: string; extensions: string[] }> }) => invoke<string | null>("files:saveText", x),
 
   customersList: () => invoke("customers:list"),
   customersSave: (x: Record<string, unknown>) => invoke("customers:save", x),

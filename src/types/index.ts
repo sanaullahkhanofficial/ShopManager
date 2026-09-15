@@ -225,6 +225,28 @@ export interface Location {
   status: string;
 }
 
+export interface LocationStock {
+  location_id: number;
+  location_name: string;
+  stock: number;
+}
+
+export interface StockMovement {
+  id: number;
+  product_id: number;
+  product_name: string;
+  package_unit: string;
+  location_name: string | null;
+  type: string;
+  quantity: number;
+  previous_stock: number;
+  new_stock: number;
+  unit_cost: number;
+  reference: string;
+  reason: string;
+  created_at: string;
+}
+
 export interface AuthUser {
   id: number;
   username: string;
