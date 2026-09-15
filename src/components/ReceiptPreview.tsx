@@ -58,15 +58,22 @@ function ReceiptCopy({ data, settings, label, footerNote }: { data: ReceiptData;
   );
 }
 
-export function ReceiptPreview({ data, settings }: { data: ReceiptData; settings: Settings }) {
-  return (
-    <div id="print-root">
+// variant="hidden" (default): the print-only #print-root used by Save & Print
+// flows (invisible until window.print() — see index.css). variant="visible":
+// the same markup rendered inline on screen, for an on-screen "Preview
+// Invoice" panel — never render both variants for the same data at once,
+// each already renders both copies internally.
+export function ReceiptPreview({ data, settings, variant = "hidden" }: { data: ReceiptData; settings: Settings; variant?: "hidden" | "visible" }) {
+  const copies = (
+    <>
       {settings.print_customer_copy !== "0" && (
         <ReceiptCopy data={data} settings={settings} label="CUSTOMER COPY" footerNote={settings.invoice_footer || "Thank you for your purchase!"} />
       )}
       {settings.print_office_copy !== "0" && (
         <ReceiptCopy data={data} settings={settings} label="OFFICE COPY" footerNote="For internal record only." />
       )}
-    </div>
+    </>
   );
+  if (variant === "visible") return <div className="flex flex-wrap justify-center gap-4">{copies}</div>;
+  return <div id="print-root">{copies}</div>;
 }

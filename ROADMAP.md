@@ -177,6 +177,55 @@ photography without any licensing risk or runtime dependency. Swap
 `WheatFieldBackdrop.tsx` for real photography (as a bundled image asset,
 still offline-safe) whenever it's supplied.
 
+## Phase B — Settings v2 (this pass, real, tested)
+
+A tabbed Settings & Business Configuration page matching the reference
+design's structure (10 tabs), built on real backend wiring rather than
+inert form fields:
+
+- **Business Profile** — full identity form (owner, CNIC/NTN, email,
+  timezone, description) plus a real logo upload via the existing
+  `images:pick` native file dialog.
+- **System Settings** — date/time format, fiscal year start, and 8 feature
+  toggles persisted as real settings (multi-location's toggle documents
+  honestly that the DB support is real from Phase 0 but the POS/Purchases
+  location picker UI is still Phase F/G work).
+- **Invoice & Print** — separate configurable Sales/Purchase invoice
+  prefixes that now actually drive numbering (`sales:create`/
+  `purchases:create` read `invoice_prefix`/`invoice_prefix_purchase` from
+  settings instead of a hardcoded string), plus a **Preview Invoice** button
+  that renders the real `ReceiptPreview` component on-screen (new `variant`
+  prop) with sample data — proving the dual-copy Customer/Office layout
+  without needing a real sale.
+- **Payment Methods** and **Locations & Warehouses** — real CRUD tables
+  wired straight to the Phase 0 `paymentMethods:*`/`locations:*` IPC, with
+  a working active/inactive toggle.
+- **Tax & Discounts** — the Phase 0 tax/discount settings, now editable.
+- **Notifications** — toggles that actually gate `generateNotifications()`
+  (verified: a low-stock item generates no notification while its toggle
+  is off, and does once re-enabled).
+- **Backup & Data** — a real **automatic backup** implementation (not just
+  a toggle): on startup, if enabled and the configured Daily/Weekly
+  interval has elapsed, the app copies the database into
+  `<userData>/backups/`, records the timestamp, and prunes to the most
+  recent 10 automatic backups. The tab shows the real last-backup time and
+  file count.
+- **System Preferences** — a real **negative-stock policy** toggle
+  (Section 47): `applyStock()` now denies any movement that would take
+  stock below zero unless the owner explicitly allows it here.
+- **Integrations** — SMS/WhatsApp/Email provider fields persist for later
+  use, with an honest "not connected — sending isn't implemented yet"
+  banner rather than pretending the buttons elsewhere in the app work.
+- All settings keys are seeded via `INSERT OR IGNORE` on every startup
+  (not just on a fresh install), so upgrading from Phase A doesn't leave
+  any new Phase B setting missing.
+- Verified with `scripts/test-phaseB.cjs` (configurable invoice prefixes,
+  negative-stock toggle, notification-type toggles, payment method/location
+  CRUD, automatic backup actually running and leaving a file on disk) and
+  visually with the same stubbed-`window.api` Playwright approach as Phase
+  A — screenshots confirm every tab renders correctly, including the
+  invoice preview modal showing both receipt copies side by side.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":

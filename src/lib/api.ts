@@ -63,6 +63,12 @@ export const api = {
   auditList: (limit = 200) => invoke("audit:list", limit),
 
   locationsList: () => invoke("locations:list"),
+  locationsSave: (x: Record<string, unknown>) => invoke("locations:save", x),
+
+  paymentMethodsList: () => invoke("paymentMethods:list"),
+  paymentMethodsSave: (x: Record<string, unknown>) => invoke("paymentMethods:save", x),
+
+  imagesPick: () => invoke<string | null>("images:pick"),
 
   notificationsList: (limit = 50) => invoke("notifications:list", limit),
   notificationsUnreadCount: () => invoke("notifications:unreadCount"),
@@ -72,5 +78,6 @@ export const api = {
 
   appInfo: () => invoke("app:info"),
   backupCreate: () => invoke("backup:create"),
+  backupAutoStatus: () => invoke("backup:autoStatus"),
   dbIntegrity: () => invoke("db:integrity"),
 };

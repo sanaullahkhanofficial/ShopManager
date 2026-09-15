@@ -61,6 +61,24 @@ render correctly with **zero console/page errors**. Self-hosted fonts
 bundled build output, confirming no runtime dependency on Google Fonts or
 any other network resource.
 
+## Phase B checks (this session)
+- `scripts/test-phaseB.cjs` (`npm run test:phaseB`) — confirms: sales and
+  purchase invoice numbers honor the configurable Sales/Purchase prefixes;
+  stock adjustments are denied once they'd go negative unless
+  `allow_negative_stock=1`, and succeed once it's on; low-stock
+  notifications stop generating when `notify_low_stock=0` and resume when
+  re-enabled; a new payment method and a new location both persist; and an
+  automatic backup actually ran at startup (`last_backup_at` set, a real
+  file on disk). All passed. `npm run test:accounting` and
+  `npm run test:phase0` were re-run against the Phase B schema and still
+  pass unchanged — nothing regressed.
+- Visual smoke test (Playwright, `window.api` stubbed, same approach as
+  Phase A): Settings' Business Profile tab, every other tab in sequence,
+  and the Invoice Preview modal all render with zero console errors —
+  screenshots confirm the tab bar, toggles, and the side-by-side
+  Customer/Office receipt preview all look correct.
+- `npx tsc --noEmit` and `npm run build:web` both pass.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

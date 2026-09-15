@@ -269,6 +269,7 @@ function initDb() {
   backfillLocationStock();
   generateNotifications();
   runDueRecurringExpenses();
+  maybeAutoBackup();
   db.prepare("INSERT OR IGNORE INTO schema_meta(version) VALUES(4)").run();
 }
 
@@ -344,10 +345,13 @@ function applyStock(productId, locationId, quantitySigned, unitCost, type, refer
   if (!p) throw new Error("Product not found");
   const loc = locationId || defaultLocationId();
 
+  // Section 47: negative stock is denied unless the owner explicitly allows it in Settings > System Preferences.
+  const allowNegative = settingsGet().allow_negative_stock === "1";
+
   const locRow = db.prepare("SELECT stock FROM product_location_stock WHERE product_id=? AND location_id=?").get(productId, loc);
   const previousAtLocation = locRow ? locRow.stock : 0;
   const nextAtLocation = previousAtLocation + quantitySigned;
-  if (nextAtLocation < 0) throw new Error(`Insufficient stock for ${p.name} at this location: have ${previousAtLocation}, need ${-quantitySigned}`);
+  if (nextAtLocation < 0 && !allowNegative) throw new Error(`Insufficient stock for ${p.name} at this location: have ${previousAtLocation}, need ${-quantitySigned}`);
 
   const previousTotal = p.stock || 0;
   let newAvg = p.avg_cost || 0;
@@ -355,7 +359,7 @@ function applyStock(productId, locationId, quantitySigned, unitCost, type, refer
     newAvg = (previousTotal * (p.avg_cost || 0) + quantitySigned * unitCost) / (previousTotal + quantitySigned || 1);
   }
   const newTotal = previousTotal + quantitySigned;
-  if (newTotal < -0.0001) throw new Error(`Insufficient stock for ${p.name}: have ${previousTotal}, need ${-quantitySigned}`);
+  if (newTotal < -0.0001 && !allowNegative) throw new Error(`Insufficient stock for ${p.name}: have ${previousTotal}, need ${-quantitySigned}`);
 
   db.prepare(`INSERT INTO product_location_stock(product_id,location_id,stock) VALUES(?,?,?)
     ON CONFLICT(product_id,location_id) DO UPDATE SET stock=excluded.stock`).run(productId, loc, nextAtLocation);
@@ -424,20 +428,47 @@ function computeAging(rows, openingBalance, openingDate) {
 }
 
 function generateNotifications() {
+  const settings = settingsGet();
   const push = (type, title, body, entity, entityId, severity) => {
     const exists = db.prepare("SELECT id FROM notifications WHERE type=? AND entity=? AND entity_id=? AND is_read=0").get(type, entity, entityId);
     if (exists) return;
     db.prepare("INSERT INTO notifications(type,title,body,entity,entity_id,severity,created_at) VALUES(?,?,?,?,?,?,?)")
       .run(type, title, body, entity, entityId, severity, now());
   };
-  db.prepare("SELECT id,name,stock,min_stock,package_unit FROM products WHERE status='active' AND stock<=min_stock").all()
-    .forEach((p) => push("LOW_STOCK", `Low stock: ${p.name}`, `${p.stock} ${p.package_unit} remaining (minimum ${p.min_stock})`, "product", p.id, "warning"));
-  db.prepare("SELECT id,COALESCE(shop_name,name) name FROM customers WHERE status='active'").all().forEach((c) => {
-    const agingRows = db.prepare("SELECT direction,amount,created_at FROM customer_transactions WHERE customer_id=? ORDER BY created_at ASC").all(c.id);
-    const customer = db.prepare("SELECT opening_balance,created_at FROM customers WHERE id=?").get(c.id);
-    const aging = computeAging(agingRows, customer.opening_balance, customer.created_at);
-    if (aging.over90 > 0) push("RECEIVABLE_OVERDUE", `Overdue balance: ${c.name}`, `Rs. ${Math.round(aging.over90)} outstanding for over 90 days`, "customer", c.id, "critical");
-  });
+  if (settings.notify_low_stock !== "0") {
+    db.prepare("SELECT id,name,stock,min_stock,package_unit FROM products WHERE status='active' AND stock<=min_stock").all()
+      .forEach((p) => push("LOW_STOCK", `Low stock: ${p.name}`, `${p.stock} ${p.package_unit} remaining (minimum ${p.min_stock})`, "product", p.id, "warning"));
+  }
+  if (settings.notify_overdue_receivables !== "0") {
+    db.prepare("SELECT id,COALESCE(shop_name,name) name FROM customers WHERE status='active'").all().forEach((c) => {
+      const agingRows = db.prepare("SELECT direction,amount,created_at FROM customer_transactions WHERE customer_id=? ORDER BY created_at ASC").all(c.id);
+      const customer = db.prepare("SELECT opening_balance,created_at FROM customers WHERE id=?").get(c.id);
+      const aging = computeAging(agingRows, customer.opening_balance, customer.created_at);
+      if (aging.over90 > 0) push("RECEIVABLE_OVERDUE", `Overdue balance: ${c.name}`, `Rs. ${Math.round(aging.over90)} outstanding for over 90 days`, "customer", c.id, "critical");
+    });
+  }
+}
+
+// Section 49: automatic local backup (Daily/Weekly), on top of the existing
+// manual "Backup Now" save-as flow. Writes into <userData>/backups and keeps
+// the most recent 10 so the folder doesn't grow unbounded.
+function maybeAutoBackup() {
+  const settings = settingsGet();
+  if (settings.auto_backup_enabled === "0") return;
+  const frequencyMs = settings.auto_backup_frequency === "Weekly" ? 7 * 86400000 : 86400000;
+  const last = settings.last_backup_at ? new Date(settings.last_backup_at).getTime() : 0;
+  if (Date.now() - last < frequencyMs) return;
+
+  const backupsDir = path.join(app.getPath("userData"), "backups");
+  fs.mkdirSync(backupsDir, { recursive: true });
+  db.pragma("wal_checkpoint(TRUNCATE)");
+  const dest = path.join(backupsDir, `ShopManager-Auto-${now().replace(/[:.]/g, "-")}.db`);
+  fs.copyFileSync(path.join(app.getPath("userData"), "shopmanager.db"), dest);
+  settingsSet({ last_backup_at: now() });
+  audit(null, "AUTO_BACKUP_CREATED", "system", null, { path: dest });
+
+  const files = fs.readdirSync(backupsDir).filter((f) => f.startsWith("ShopManager-Auto-")).sort();
+  while (files.length > 10) fs.unlinkSync(path.join(backupsDir, files.shift()));
 }
 
 function runDueRecurringExpenses() {
@@ -457,31 +488,44 @@ function runDueRecurringExpenses() {
 // Seed data — exact business identity and product catalog supplied by the owner.
 // ---------------------------------------------------------------------------
 function seed() {
-  if (!db.prepare("SELECT COUNT(*) c FROM settings").get().c) {
-    const s = db.prepare("INSERT INTO settings(key,value) VALUES(?,?)");
-    [
-      ["business_name", "Haji Abdul Manan & Abdul Hanan"],
-      ["business_title", "Haji Abdul Manan & Abdul Hanan — Atta Dealer Pishin"],
-      ["business_type", "Atta Dealer / Fertilizer / Grains"],
-      ["address", "Pishin, Balochistan, Pakistan"],
-      ["phone", ""], ["cnic", ""], ["ntn", ""],
-      ["currency", "PKR"],
-      ["primary_color", "#1f6b2a"],
-      ["logo_path", ""],
-      ["invoice_footer", "Thank you for your purchase!"],
-      ["invoice_prefix", "INV"],
-      ["language", "en"],
-      ["low_stock_default", "10"],
-      ["print_customer_copy", "1"],
-      ["print_office_copy", "1"],
-      ["auto_cut", "1"],
-      ["sales_tax_enabled", "0"], ["sales_tax_rate", "0"],
-      ["purchase_tax_enabled", "0"], ["purchase_tax_rate", "0"],
-      ["discount_sales_enabled", "1"], ["discount_sales_max_pct", "10"],
-      ["discount_purchase_enabled", "1"], ["discount_purchase_max_pct", "10"],
-      ["setup_complete", "0"]
-    ].forEach(x => s.run(...x));
-  }
+  // INSERT OR IGNORE per-key (not gated on the table being empty) so every
+  // install — fresh or upgraded from an earlier phase — ends up with every
+  // known setting key, without ever overwriting a value the owner already set.
+  const s = db.prepare("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)");
+  [
+    ["business_name", "Haji Abdul Manan & Abdul Hanan"],
+    ["business_title", "Haji Abdul Manan & Abdul Hanan — Atta Dealer Pishin"],
+    ["business_type", "Atta Dealer / Fertilizer / Grains"],
+    ["owner_name", "Haji Abdul Manan & Abdul Hanan"],
+    ["address", "Pishin, Balochistan, Pakistan"],
+    ["phone", ""], ["cnic", ""], ["ntn", ""], ["email", ""],
+    ["currency", "PKR"], ["timezone", "Asia/Karachi"],
+    ["primary_color", "#1f6b2a"],
+    ["logo_path", ""],
+    ["business_description", "Quality fertilizers, grains, and atta for a prosperous Balochistan."],
+    ["invoice_footer", "Thank you for your purchase!"],
+    ["invoice_prefix", "INV"], ["invoice_prefix_purchase", "PUR"],
+    ["invoice_template", "Standard"], ["invoice_size", "A4"],
+    ["show_logo_on_invoice", "1"], ["show_barcode_on_invoice", "1"],
+    ["show_terms_on_invoice", "0"], ["show_thankyou_on_invoice", "1"],
+    ["language", "en"], ["date_format", "DD MMM YYYY"], ["time_format", "12"], ["fiscal_year_start_month", "January"],
+    ["low_stock_default", "10"],
+    ["print_customer_copy", "1"], ["print_office_copy", "1"], ["auto_cut", "1"],
+    ["sales_tax_enabled", "0"], ["sales_tax_rate", "0"],
+    ["purchase_tax_enabled", "0"], ["purchase_tax_rate", "0"],
+    ["discount_sales_enabled", "1"], ["discount_sales_max_pct", "10"],
+    ["discount_purchase_enabled", "1"], ["discount_purchase_max_pct", "10"],
+    ["enable_batch_tracking", "0"], ["enable_low_stock_alerts", "1"],
+    ["enable_sales_return", "1"], ["enable_purchase_return", "1"],
+    ["enable_customer_credit", "1"], ["enable_supplier_credit", "1"],
+    ["show_purchase_price_to_sales", "0"], ["enable_multi_location", "0"],
+    ["notify_low_stock", "1"], ["notify_overdue_receivables", "1"],
+    ["allow_negative_stock", "0"], ["default_sale_mode", "Retail"],
+    ["auto_backup_enabled", "1"], ["auto_backup_frequency", "Daily"], ["last_backup_at", ""],
+    ["sms_provider", ""], ["sms_api_key", ""], ["whatsapp_provider", ""], ["whatsapp_api_key", ""],
+    ["email_smtp_host", ""], ["email_smtp_port", ""], ["email_smtp_user", ""], ["email_smtp_pass", ""],
+    ["setup_complete", "0"]
+  ].forEach(x => s.run(...x));
   if (db.prepare("SELECT COUNT(*) c FROM locations").get().c === 0) {
     db.prepare("INSERT INTO locations(name,type,created_at) VALUES(?,?,?)").run("Main Store", "Store", now());
   }
@@ -691,7 +735,7 @@ function registerIpc() {
     const paid = Math.min(Number(v.paid || 0), total);
     if (paid < 0) throw new Error("Paid amount cannot be negative");
     const loc = v.location_id || defaultLocationId();
-    const no = nextNo("INV");
+    const no = nextNo(settingsGet().invoice_prefix || "INV");
     const sale = db.prepare(`INSERT INTO sales(invoice_no,customer_id,mode,subtotal,discount,tax,total,paid,balance,location_id,payment_method,cashier_id,sale_date,created_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(no, v.customer_id || null, v.mode || "Retail", subtotal, discount, tax, total, paid, total - paid, loc, v.payment_method || "Cash", v.actorId || null, today(), now());
@@ -780,7 +824,7 @@ function registerIpc() {
     const grandTotal = Math.max(0, subtotal - discount + tax);
     const paid = Math.min(Number(v.paid || 0), grandTotal);
     const loc = v.location_id || defaultLocationId();
-    const no = nextNo("PUR");
+    const no = nextNo(settingsGet().invoice_prefix_purchase || "PUR");
     const purchase = db.prepare(`INSERT INTO purchases(invoice_no,supplier_id,po_id,location_id,subtotal,discount,tax,total,paid,balance,payment_method,notes,purchase_date,created_at,user_id)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(no, v.supplier_id || null, v.po_id || null, loc, subtotal, discount, tax, grandTotal, paid, grandTotal - paid, v.payment_method || "Cash", v.notes || "", today(), now(), v.actorId || null);
@@ -1126,6 +1170,12 @@ function registerIpc() {
     return out.filePath;
   });
   ipcMain.handle("db:integrity", () => db.prepare("PRAGMA integrity_check").get());
+  ipcMain.handle("backup:autoStatus", () => {
+    const s = settingsGet();
+    const backupsDir = path.join(app.getPath("userData"), "backups");
+    const count = fs.existsSync(backupsDir) ? fs.readdirSync(backupsDir).filter((f) => f.startsWith("ShopManager-Auto-")).length : 0;
+    return { enabled: s.auto_backup_enabled !== "0", frequency: s.auto_backup_frequency || "Daily", lastBackupAt: s.last_backup_at || null, autoBackupCount: count };
+  });
 }
 
 app.whenReady().then(() => {
