@@ -7,22 +7,15 @@ import { SelectField } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { ReceiptPreview, type ReceiptData } from "../components/ReceiptPreview";
 import { useToast } from "../components/ui/Toast";
-import { useLang } from "../lib/i18n";
+import { useLang, paymentMethodLabel } from "../lib/i18n";
 import type { AuthUser, CartLine, Category, Customer, HeldSale, PaymentMethod, Product, Sale, SaleMode, Settings } from "../types";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "Bank Transfer", "JazzCash", "Easypaisa", "Cheque", "Credit", "Partial"];
 const QUICK_TENDER = [100, 500, 1000, 5000, 10000];
-// JazzCash/Easypaisa are brand names and stay untranslated; the rest map to
-// real dictionary entries so the Urdu POS screen shows real Urdu labels for
-// its payment method dropdown, not just the layout mirrored around English text.
-const PAYMENT_METHOD_KEYS: Partial<Record<PaymentMethod, "cashMethod" | "bankTransferMethod" | "chequeMethod" | "creditMethod" | "partialMethod">> = {
-  Cash: "cashMethod", "Bank Transfer": "bankTransferMethod", Cheque: "chequeMethod", Credit: "creditMethod", Partial: "partialMethod",
-};
 
 export function POS({ user, settings }: { user: AuthUser; settings: Settings }) {
   const { push } = useToast();
   const { t, lang } = useLang();
-  const paymentMethodLabel = (m: PaymentMethod) => { const k = PAYMENT_METHOD_KEYS[m]; return k ? t(k) : m; };
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -355,7 +348,7 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
         </SelectField>
 
         <SelectField label={t("paymentMethod")} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
-          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{paymentMethodLabel(m)}</option>)}
+          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{paymentMethodLabel(m, t)}</option>)}
         </SelectField>
 
         <label className="block">
@@ -443,7 +436,7 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
               <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border border-stone-200 p-3">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-brand-navy-900">{s.invoice_no} <span className="font-normal text-stone-400">&middot; {s.customer_name || t("walkIn")}</span></p>
-                  <p className="text-xs text-stone-500">{money(s.total)} &middot; {paymentMethodLabel(s.payment_method)} &middot; {new Date(s.sale_date).toLocaleString()}</p>
+                  <p className="text-xs text-stone-500">{money(s.total)} &middot; {paymentMethodLabel(s.payment_method, t)} &middot; {new Date(s.sale_date).toLocaleString()}</p>
                 </div>
                 <Button onClick={() => reprint(s.id)}><Printer size={14} /> {t("reprint")}</Button>
               </div>

@@ -79,7 +79,63 @@ const dict: Record<string, { en: string; ur: string }> = {
   shortcutSearch: { en: "Search", ur: "تلاش" },
   shortcutPrint: { en: "Print", ur: "پرنٹ" },
   shortcutComplete: { en: "Complete", ur: "مکمل کریں" },
+
+  // Dashboard (Phase V)
+  dashboardGreeting: { en: "Good day!", ur: "خوش آمدید!" },
+  dashboardSubtitle: { en: "Here's what's happening in your business today.", ur: "آج آپ کے کاروبار میں یہ ہو رہا ہے۔" },
+  quickActions: { en: "Quick Actions", ur: "فوری اقدامات" },
+  qaNewSale: { en: "New Sale (POS)", ur: "نئی فروخت" },
+  qaNewPurchase: { en: "New Purchase", ur: "نئی خریداری" },
+  qaAddProduct: { en: "Add Product", ur: "پروڈکٹ شامل کریں" },
+  qaAddCustomer: { en: "Add Customer", ur: "گاہک شامل کریں" },
+  qaAddSupplier: { en: "Add Supplier", ur: "سپلائر شامل کریں" },
+  qaExpense: { en: "Expense", ur: "خرچہ" },
+  todaysPerformance: { en: "Today's Performance", ur: "آج کی کارکردگی" },
+  todaysSales: { en: "Today's Sales", ur: "آج کی فروخت" },
+  salesOnCredit: { en: "Sales on Credit", ur: "ادھار فروخت" },
+  invoicesSuffix: { en: "invoices", ur: "انوائسز" },
+  todaysPurchases: { en: "Today's Purchases", ur: "آج کی خریداری" },
+  todaysProfit: { en: "Today's Profit", ur: "آج کا منافع" },
+  businessPosition: { en: "Business Position", ur: "کاروباری پوزیشن" },
+  cashInHand: { en: "Cash in Hand", ur: "دستیاب نقدی" },
+  registerClosed: { en: "Register closed", ur: "رجسٹر بند ہے" },
+  receivables: { en: "Receivables", ur: "وصولیاں" },
+  payables: { en: "Payables", ur: "قابل ادائیگی" },
+  stockValue: { en: "Stock Value", ur: "اسٹاک کی مالیت" },
+  salesTrend7: { en: "Sales Trend — Last 7 Days", ur: "فروخت کا رجحان — پچھلے 7 دن" },
+  paymentMethodsToday: { en: "Payment Methods — Today", ur: "ادائیگی کے طریقے — آج" },
+  allViaPrefix: { en: "all via", ur: "سب بذریعہ" },
+  todaySuffix: { en: "today", ur: "آج" },
+  noSalesToday: { en: "No sales recorded yet today", ur: "آج ابھی تک کوئی فروخت درج نہیں ہوئی" },
+  cashSummary: { en: "Cash Summary", ur: "نقدی کا خلاصہ" },
+  cashRegister: { en: "Cash Register", ur: "کیش رجسٹر" },
+  openStatus: { en: "OPEN", ur: "کھلا" },
+  closedStatus: { en: "CLOSED", ur: "بند" },
+  bankBalance: { en: "Bank Balance", ur: "بینک بیلنس" },
+  pettyCash: { en: "Petty Cash", ur: "پیٹی کیش" },
+  todaysMix: { en: "Today's Mix", ur: "آج کا تناسب" },
+  lowStock: { en: "Low Stock", ur: "کم اسٹاک" },
+  productCol: { en: "Product", ur: "پروڈکٹ" },
+  stockCol: { en: "Stock", ur: "اسٹاک" },
+  minimumCol: { en: "Minimum", ur: "کم از کم" },
+  allAboveMinStock: { en: "All products are above minimum stock", ur: "تمام مصنوعات کم از کم اسٹاک سے زیادہ ہیں" },
+  recentBills: { en: "Recent Bills", ur: "حالیہ بلیں" },
+  invoiceCol: { en: "Invoice", ur: "انوائس" },
+  timeCol: { en: "Time", ur: "وقت" },
+  loading: { en: "Loading…", ur: "لوڈ ہو رہا ہے…" },
 };
+
+// JazzCash/Easypaisa are brand names and stay untranslated everywhere; the
+// rest map to real dictionary entries. Shared by every page that displays a
+// payment method (POS, Dashboard, …) so there's one real mapping, not a
+// separately maintained copy per page.
+const PAYMENT_METHOD_KEYS: Record<string, keyof typeof dict> = {
+  Cash: "cashMethod", "Bank Transfer": "bankTransferMethod", Cheque: "chequeMethod", Credit: "creditMethod", Partial: "partialMethod",
+};
+export function paymentMethodLabel(method: string, t: (key: keyof typeof dict) => string): string {
+  const key = PAYMENT_METHOD_KEYS[method];
+  return key ? t(key) : method;
+}
 
 interface Ctx {
   lang: Lang;

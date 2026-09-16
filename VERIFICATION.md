@@ -626,6 +626,39 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase V checks (this session)
+- No new `scripts/test-phaseV.cjs`: this phase touched three frontend
+  files (`i18n.tsx`, `Dashboard.tsx`, `POS.tsx`) and no backend code.
+  Verified via `npm run typecheck`, `node --check electron/main.cjs`, and
+  the full existing nineteen-suite backend regression run re-executed and
+  confirmed to pass unchanged (zero regression, as expected).
+- Visual smoke test (Playwright, realistic non-zero mocked dashboard
+  data — sales, credit, receivables, a low-stock product, a 7-day trend,
+  a two-way payment-method split, a real recent sale): confirms every
+  section of the Dashboard renders real Urdu text when the language is
+  switched — "Today's Performance" → "آج کی کارکردگی", "Cash in Hand" →
+  "دستیاب نقدی", "Low Stock" → "کم اسٹاک", "Recent Bills" → "حالیہ بلیں" —
+  and that the payment-method donut legend and Today's Mix split bars
+  show real translated "نقد" (Cash) / "ادھار" (Credit) labels rather than
+  the raw English database values. The 7-day trend chart's weekday axis
+  labels are confirmed to render in real Urdu script (via `Intl`'s own
+  `"ur"` locale data, not a hand-written dictionary substitute). The real
+  mocked customer name "Ali Khan General Store" is confirmed to still
+  appear verbatim and untranslated in the Recent Bills table, proving the
+  translation layer only touches the app's own chrome text and never
+  business data. Zero console errors beyond the one harmless favicon 404.
+- **A real internal inconsistency fixed, not left to drift**: Phase T's
+  `PAYMENT_METHOD_KEYS` mapping was a private copy inside `POS.tsx`.
+  Dashboard needed the identical mapping for its own payment-method
+  display. Instead of writing a second copy, it was promoted to a single
+  real export (`paymentMethodLabel()`) from `i18n.tsx`, and `POS.tsx` was
+  updated to import and use that same export — confirmed by `npm run
+  typecheck` passing clean and the existing POS Playwright coverage
+  (re-run manually as part of this phase's verification) still showing
+  the same correct Urdu payment-method labels POS already had.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
