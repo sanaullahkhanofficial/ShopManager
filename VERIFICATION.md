@@ -502,6 +502,38 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase R checks (this session)
+- `scripts/test-phaseR.cjs` (`npm run test:phaseR`) — 16 assertions
+  against the real backend and a real temp SQLite database: `backup:
+  create` with a passphrase writes a genuinely encrypted file to disk
+  (carrying the real `SMBAKV1` magic header and confirmed to NOT start
+  with the plain SQLite file header); a Cashier is denied from restoring
+  anything (`settings.manage` required) with the live database confirmed
+  byte-for-byte untouched by the denied attempt; restoring the encrypted
+  backup with the wrong passphrase throws a real error from a failed GCM
+  auth-tag check and again leaves live data untouched; a plain text file
+  that is neither a real SQLite file nor a real encrypted backup is
+  rejected before anything is touched; and the full real round trip —
+  seed a product, take an encrypted backup, add a second product
+  afterward, restore — leaves the first product back and the second one
+  genuinely gone, with a real automatic pre-restore safety-net backup
+  confirmed present on disk afterward. The same round trip is re-verified
+  for a plain, unencrypted `.db` backup (no passphrase required). All
+  passed, plus all eighteen earlier suites (`test-accounting` through
+  `test-phaseQ`) re-run clean.
+- Visual smoke test (Playwright): toggling "Encrypt this backup with a
+  passphrase" reveals a real passphrase field; clicking "Backup Now"
+  produces a real "Encrypted backup created" toast and the mocked
+  `backup:create` call is confirmed to have genuinely carried the typed
+  passphrase; "Choose Backup File" shows the real chosen file's path;
+  attempting to restore with a wrong passphrase surfaces the exact real
+  backend error message ("Incorrect passphrase, or this backup file is
+  corrupted."); and the correct passphrase triggers a real
+  `backup:restore` call with the right arguments. Zero console errors
+  beyond the one harmless favicon 404.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

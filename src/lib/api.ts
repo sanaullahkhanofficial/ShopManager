@@ -143,7 +143,9 @@ export const api = {
   notificationsRefresh: () => invoke("notifications:refresh"),
 
   appInfo: () => invoke("app:info"),
-  backupCreate: () => invoke("backup:create"),
+  backupCreate: (passphrase?: string) => invoke<string | null>("backup:create", { passphrase }),
   backupAutoStatus: () => invoke("backup:autoStatus"),
+  backupPickFile: () => invoke<string | null>("backup:pickFile"),
+  backupRestore: (x: { filePath: string; passphrase?: string; actorId: number }) => invoke<{ restored: boolean }>("backup:restore", x),
   dbIntegrity: () => invoke("db:integrity"),
 };

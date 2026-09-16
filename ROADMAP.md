@@ -1025,6 +1025,58 @@ inert form fields:
   triggers zero export calls, with zero console errors beyond the one
   harmless favicon 404 on both runs.
 
+## Phase R — Real backup encryption + restore-from-backup (this pass, real, tested)
+
+- **The headline change: a backup can now actually be restored.** Every
+  earlier phase's "Backup Now" only ever made a copy of the file — there
+  was no restore path anywhere in the app, meaning a backup existed but
+  had no real disaster-recovery use. A new `backup:restore` handler
+  validates a chosen file (decrypting it first if it's encrypted, then
+  running a real `PRAGMA integrity_check` against a staged copy) before
+  it's ever allowed to touch the live database, takes its own automatic
+  safety-net copy of the current data first, then safely closes and
+  reopens the live database connection against the restored file.
+  Restoring is gated under `settings.manage` — the most consequential,
+  destructive action in the whole app (it replaces every sale, customer
+  balance and cash record at once) is exactly the one this session chose
+  to gate rather than leave open, unlike the pre-existing, still-ungated
+  `backup:create`/`db:integrity`.
+- **Real optional encryption, not a checkbox that does nothing.** A
+  passphrase-protected backup uses AES-256-GCM with a fresh, random
+  scrypt-derived key per backup (the exact same primitive this app has
+  used for real user password hashing since the original foundation, not
+  a new crypto approach introduced just for this) — an 8-byte magic
+  header lets restore tell an encrypted `.smbak` file from a plain `.db`
+  one without guessing, and a wrong passphrase fails the GCM auth-tag
+  check and throws a clear, honest error rather than silently producing
+  garbage data.
+- **Scope decision, stated plainly**: encryption only applies to manual
+  backups, where a real person is present to type a passphrase.
+  Scheduled automatic backups (Section 49, already real since an earlier
+  phase — see the corrected deferred bullet below) stay plain files, since
+  storing a passphrase anywhere the app could use it unattended would
+  defeat the point of encrypting it in the first place; this is a
+  deliberate security boundary, not an oversight.
+- Verified with `scripts/test-phaseR.cjs` (16 assertions against the real
+  backend: a real encrypted backup is written to disk, carries the real
+  encryption header, and is genuinely unreadable as plain SQLite; a
+  Cashier (no `settings.manage`) is denied from restoring anything, with
+  the live database confirmed completely untouched by the denied attempt;
+  restoring the encrypted backup with the wrong passphrase throws a real
+  error and again leaves live data untouched; a non-backup file is
+  rejected outright; and the real end-to-end round trip — seed a product,
+  back it up encrypted, add a second product afterward, restore — leaves
+  the first product back and the second one genuinely gone, with an
+  automatic pre-restore safety copy confirmed on disk, and the same round
+  trip is re-verified for a plain, unencrypted backup too) — all pass,
+  plus all eighteen earlier suites re-run clean. Visual smoke test
+  (Playwright) confirms the encryption toggle reveals a passphrase field,
+  a real "Encrypted backup created" success toast appears, choosing a
+  restore file shows its real path, a wrong passphrase surfaces the exact
+  real backend error message, and the correct passphrase triggers the
+  real restore call — zero console errors beyond the one harmless favicon
+  404.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1044,8 +1096,11 @@ These are named explicitly so nobody mistakes silence for "it exists":
   integration for the desktop build does not exist.
 - **Full UI localization.** The Urdu toggle covers navigation/chrome and
   product names, not every label in every form.
-- **Backup encryption, scheduled/cloud backup.** Backup is a plain SQLite
-  file copy to a location you choose; no encryption or automatic schedule.
+- **Cloud backup.** Local backup is real and, since Phase R, can be
+  encrypted and genuinely restored; automatic local scheduling has quietly
+  existed since an earlier phase (`maybeAutoBackup()`, checked on every
+  app launch) — what's still missing is any off-device/cloud destination,
+  which depends on the still-deferred cloud/sync work above.
 - **Data-grid features** (Section 53) not covered by Phase Q's real Reports
   CSV export: no column-visibility toggle anywhere, no PDF export, and
   `DataTable`'s pagination (used across most list pages, `pageSize` prop)
@@ -1053,7 +1108,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   a shop's realistic table sizes, but not the server-side
   limit/offset-at-the-SQL-layer pagination Section 53 originally specified.
 
-## Page-level phases (A–N) plus Phase O–Q — all done
+## Page-level phases (A–N) plus Phase O–R — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1063,15 +1118,17 @@ Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M** Users &
 Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
 barcode rendering + receipt polish — all done (see sections above). **N**
 was the last lettered phase in the original plan; **O** (client-side
-per-role UI gating), **P** (real AI Business Assistant) and **Q** (real
-Reports CSV export) followed as direct, named follow-ons — **O** closing
-Phase M's own stated gap, **P** turning the Section 59–60 placeholder into
-a genuinely working page, **Q** wiring the `reports.export` permission
-(real since Phase 0, never acted on) to an actual feature. What remains
-is the list below, none of it faked or half-built, all of it named
-honestly.
+per-role UI gating), **P** (real AI Business Assistant), **Q** (real
+Reports CSV export) and **R** (real backup encryption + restore) followed
+as direct, named follow-ons — **O** closing Phase M's own stated gap, **P**
+turning the Section 59–60 placeholder into a genuinely working page, **Q**
+wiring the `reports.export` permission (real since Phase 0, never acted
+on) to an actual feature, **R** turning "Backup Now" from a one-way copy
+into an actual, restorable, optionally-encrypted disaster-recovery path.
+What remains is the list below, none of it faked or half-built, all of it
+named honestly.
 
-## Still not started after Phase 0/A–Q
+## Still not started after Phase 0/A–R
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.

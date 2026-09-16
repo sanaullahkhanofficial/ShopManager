@@ -39,6 +39,38 @@ function verifyPassword(pw, stored) {
   }
 }
 
+// Section 49 follow-on: optional password-protected backups. Format is a
+// fixed 8-byte magic header (so restore can tell an encrypted backup from
+// a plain SQLite file without guessing) followed by a random 16-byte salt,
+// 12-byte GCM IV, 16-byte auth tag, then the AES-256-GCM ciphertext. The
+// key is scrypt-derived from the passphrase per backup (fresh salt every
+// time), the same primitive already used for real user password hashing
+// above — no new crypto approach introduced just for this.
+const BACKUP_MAGIC = Buffer.from("SMBAKV1\0", "ascii");
+function encryptBackup(plainBuf, passphrase) {
+  const salt = crypto.randomBytes(16);
+  const iv = crypto.randomBytes(12);
+  const key = crypto.scryptSync(passphrase, salt, 32);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plainBuf), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([BACKUP_MAGIC, salt, iv, tag, ciphertext]);
+}
+function isEncryptedBackup(buf) {
+  return buf.length > BACKUP_MAGIC.length && buf.subarray(0, BACKUP_MAGIC.length).equals(BACKUP_MAGIC);
+}
+function decryptBackup(buf, passphrase) {
+  const salt = buf.subarray(8, 24), iv = buf.subarray(24, 36), tag = buf.subarray(36, 52), ciphertext = buf.subarray(52);
+  const key = crypto.scryptSync(passphrase, salt, 32);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  try {
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch {
+    throw new Error("Incorrect passphrase, or this backup file is corrupted.");
+  }
+}
+
 // Section 39 permission list. Data layer only in Phase 0 — IPC-boundary
 // enforcement + the matrix editor UI land in Phase M.
 const PERMISSIONS = [
@@ -1547,13 +1579,73 @@ function registerIpc() {
   ipcMain.handle("audit:list", (_, limit) => db.prepare("SELECT a.*,u.display_name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT ?").all(limit || 200));
 
   ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataPath: app.getPath("userData") }));
-  ipcMain.handle("backup:create", async () => {
-    const out = await dialog.showSaveDialog(win, { title: "Backup ShopManager Database", defaultPath: `ShopManager-Backup-${today()}.db`, filters: [{ name: "SQLite Database", extensions: ["db"] }] });
+  ipcMain.handle("backup:create", async (_, x) => {
+    const passphrase = x && x.passphrase ? String(x.passphrase) : "";
+    const out = await dialog.showSaveDialog(win, {
+      title: "Backup ShopManager Database",
+      defaultPath: `ShopManager-Backup-${today()}.${passphrase ? "smbak" : "db"}`,
+      filters: passphrase
+        ? [{ name: "Encrypted ShopManager Backup", extensions: ["smbak"] }]
+        : [{ name: "SQLite Database", extensions: ["db"] }],
+    });
     if (out.canceled) return null;
     db.pragma("wal_checkpoint(TRUNCATE)");
-    fs.copyFileSync(path.join(app.getPath("userData"), "shopmanager.db"), out.filePath);
-    audit(null, "BACKUP_CREATED", "system", null, { path: out.filePath });
+    const plain = fs.readFileSync(path.join(app.getPath("userData"), "shopmanager.db"));
+    fs.writeFileSync(out.filePath, passphrase ? encryptBackup(plain, passphrase) : plain);
+    audit(null, "BACKUP_CREATED", "system", null, { path: out.filePath, encrypted: !!passphrase });
     return out.filePath;
+  });
+  ipcMain.handle("backup:pickFile", async () => {
+    const r = await dialog.showOpenDialog(win, {
+      title: "Choose a ShopManager Backup", properties: ["openFile"],
+      filters: [{ name: "ShopManager Backup", extensions: ["db", "smbak"] }, { name: "All Files", extensions: ["*"] }],
+    });
+    return r.canceled ? null : r.filePaths[0];
+  });
+  // Section 49 follow-on: real restore, not just "make a copy" — a backup
+  // nobody can restore from isn't disaster recovery. Validates the file
+  // (decrypting if needed, then a real SQLite integrity check on a staged
+  // copy) before ever touching the live database, and takes its own
+  // automatic safety-net backup of the current data first so a mistaken
+  // restore can itself be undone.
+  ipcMain.handle("backup:restore", (_, x) => {
+    requirePermission(x.actorId, "settings.manage");
+    const buf = fs.readFileSync(x.filePath);
+    let plain;
+    if (isEncryptedBackup(buf)) {
+      if (!x.passphrase) throw new Error("This backup is encrypted — enter the passphrase it was created with.");
+      plain = decryptBackup(buf, x.passphrase);
+    } else if (buf.subarray(0, 16).toString("utf8") === "SQLite format 3\0") {
+      plain = buf;
+    } else {
+      throw new Error("Not a valid ShopManager backup file.");
+    }
+
+    const userDataDir = app.getPath("userData");
+    const stagingPath = path.join(userDataDir, "restore-staging.db");
+    fs.writeFileSync(stagingPath, plain);
+    let staged;
+    try {
+      staged = new Database(stagingPath, { readonly: true });
+      const check = staged.prepare("PRAGMA integrity_check").get().integrity_check;
+      staged.close();
+      if (check !== "ok") { fs.unlinkSync(stagingPath); throw new Error("This backup file failed a database integrity check and was not restored."); }
+    } catch (e) {
+      if (fs.existsSync(stagingPath)) fs.unlinkSync(stagingPath);
+      throw e instanceof Error ? e : new Error("This backup file could not be read as a database and was not restored.");
+    }
+
+    const preRestoreDir = path.join(userDataDir, "pre-restore-backups");
+    fs.mkdirSync(preRestoreDir, { recursive: true });
+    db.pragma("wal_checkpoint(TRUNCATE)");
+    fs.copyFileSync(path.join(userDataDir, "shopmanager.db"), path.join(preRestoreDir, `PreRestore-${now().replace(/[:.]/g, "-")}.db`));
+
+    db.close();
+    fs.copyFileSync(stagingPath, path.join(userDataDir, "shopmanager.db"));
+    fs.unlinkSync(stagingPath);
+    initDb();
+    audit(x.actorId, "BACKUP_RESTORED", "system", null, { path: x.filePath });
+    return { restored: true };
   });
   ipcMain.handle("db:integrity", () => db.prepare("PRAGMA integrity_check").get());
   ipcMain.handle("backup:autoStatus", () => {

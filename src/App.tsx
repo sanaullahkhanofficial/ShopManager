@@ -103,7 +103,7 @@ export default function App() {
               {page === "reports" && <Reports user={user} />}
               {page === "users" && <Users user={user} />}
               {page === "settings" && <SettingsPage value={settings} onSaved={setSettings} user={user} />}
-              {page === "backup" && <Backup />}
+              {page === "backup" && <Backup user={user} />}
               {page === "aiAssistant" && <AIAssistant />}
             </>
           )}
