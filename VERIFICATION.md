@@ -833,6 +833,43 @@ any other network resource.
   untranslated in both languages. Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AB checks (this session)
+- No new `scripts/test-phaseAB.cjs`: this phase touched two frontend
+  files (`i18n.tsx`, `CustomerLedger.tsx`) and no backend code. Verified
+  via `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Added zero new translation helpers — reused all three existing ones
+  (`ledgerTypeLabel()`, `paymentMethodLabel()`, `customerTypeLabel()`) in
+  a single page for the first time. Also reused `customerTypeLabel()` for
+  the Sales History tab's Mode column, since `Sale.mode` is the same
+  `"Retail" | "Wholesale"` value set as `customer_type`; checked
+  `src/types/index.ts` directly to confirm this before reusing it, rather
+  than assuming.
+- A real harness bug (not an app bug) was hit and fixed while writing the
+  Playwright test: clicking the "Customers (Shops)" sidebar group header
+  navigates to its first child page as well as expanding the group (see
+  `Sidebar.tsx`'s group button `onClick`), so the test's initial mocked
+  IPC surface was missing `customerGroups:list` (needed by the Customers
+  page the click actually lands on) and threw `Cannot read properties of
+  null (reading 'map')`. Fixed by adding the stub; documented here so a
+  future phase's smoke test for a page reached via the same group header
+  doesn't rediscover it.
+- Visual smoke test (Playwright, one realistic mocked Wholesale customer
+  with a real outstanding balance, two ledger rows, an aging bucket, and
+  one linked sale — English then Urdu): confirms the customer picker
+  screen, the header stat strip, all five tabs (Transaction Ledger,
+  Account Summary, Payment History, Sales History, Ageing Report), and
+  the Receive Payment panel all render real Urdu; confirms the
+  Transaction Ledger renders "ادھار فروخت" for the real `SALE_CREDIT` row
+  and "ادائیگی" for the real `PAYMENT` row rather than leaking the raw
+  enum text (asserted directly — checked the raw strings do NOT appear in
+  the rendered Urdu page); confirms the real customer name ("Karim
+  General Store") and real reference numbers ("INV-0009", "PAY-0004")
+  stay untranslated in both languages. Zero console errors after the
+  harness fix above.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

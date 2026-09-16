@@ -1468,6 +1468,50 @@ inert form fields:
   console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AB — Extend Urdu localization to Customer Ledger (this pass, real, tested)
+
+- **The headline change**: the Customer Ledger page — the customer
+  picker, the header stat strip, all five tabs (Transaction Ledger,
+  Account Summary, Payment History, Sales History, Ageing Report), and
+  the Receive Payment panel — is now genuinely bilingual, closing the
+  loop on the "Ledger" button Phase Y's Customers page links here from.
+- **The clearest payoff yet of the shared-helper investment**: this page
+  needed all three prior real-value-translation helpers at once —
+  `ledgerTypeLabel()` for the Transaction Ledger's raw `type` column
+  (`SALE_CREDIT`/`PAYMENT`/…), `paymentMethodLabel()` for the Payment
+  History tab's Method column and the Receive Payment dropdown, and
+  `customerTypeLabel()` for the customer-type badge in the picker table
+  and the header's "{type} Shop" line — and added zero new helpers of
+  its own. One further reuse: `customerTypeLabel()` also covers the
+  Sales History tab's Mode column, since `Sale.mode` is the same
+  `"Retail" | "Wholesale"` value set as `customer_type` (minus
+  `Distributor`) — a deliberate, honest reuse of an existing mapping for
+  a different field that happens to share the same real values and
+  words, not a coincidental hack.
+- **A real navigation bug in the smoke test's own harness, not the app**:
+  while wiring up Playwright, clicking the "Customers (Shops)" sidebar
+  group header threw `Cannot read properties of null (reading 'map')` —
+  tracing it showed the group header's `onClick` in `Sidebar.tsx`
+  navigates straight to its first child page (`setPage(entry.children[0].id)`)
+  as well as expanding the group, so the test had actually landed on the
+  full Customers page and needed its `customerGroups:list` stub too. This
+  was a gap in the test's own mocked IPC surface, not an app bug — noted
+  here because it is the kind of thing worth recording so a future
+  phase's smoke test doesn't rediscover it from scratch.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend file,
+  as expected for a pure frontend localization pass). Visual smoke test
+  (Playwright, one realistic mocked Wholesale customer with a real
+  outstanding balance, two ledger rows, an aging bucket, and one linked
+  sale — English then Urdu): confirms the picker screen, the header stat
+  strip, all five tabs, and the Receive Payment panel render real Urdu;
+  confirms the Transaction Ledger renders "ادھار فروخت" for the real
+  `SALE_CREDIT` row rather than the raw enum text (asserted directly);
+  confirms the real customer name ("Karim General Store") and real
+  reference numbers ("INV-0009", "PAY-0004") stay untranslated in both
+  languages. Zero console errors after the harness fix above.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1489,12 +1533,12 @@ These are named explicitly so nobody mistakes silence for "it exists":
   it's the real, working fallback, not a placeholder.)
 - **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
   Management (Phase W), Products (Phase X), Customers (Phase Y),
-  Suppliers (Phase Z) and Expenses (Phase AA) are now genuinely
-  bilingual; every other page (Reports, Settings, Users, the
-  Customer/Supplier Ledger pages, …) still renders RTL-mirrored but
+  Suppliers (Phase Z), Expenses (Phase AA) and Customer Ledger (Phase AB)
+  are now genuinely bilingual; every other page (Reports, Settings,
+  Users, the Supplier Ledger page, …) still renders RTL-mirrored but
   largely in English. The same
-  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`frequencyLabel()`
-  pattern is proven and repeatable across seven pages now — extending it
+  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`customerTypeLabel()`/`frequencyLabel()`
+  pattern is proven and repeatable across eight pages now — extending it
   further is real, bounded work for future phases, not a different kind
   of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
@@ -1508,7 +1552,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–Z and AA — all done
+## Page-level phases (A–N) plus Phase O–Z and AA–AB — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1547,16 +1591,22 @@ two new shared real-value-translation helpers (`customerTypeLabel()`,
 `ledgerTypeLabel()`) built with Suppliers already in mind, **Z** extending
 it a sixth time to Suppliers, the direct payoff of that Phase Y design
 choice — most of the page's strings and all of its raw-enum translation
-already existed and only needed reuse — and **AA** extending it a
-seventh time to all four tabs of Expenses, adding a `frequencyLabel()`
-helper for the recurring-expense frequency enum and catching three
-near-duplicate dictionary keys before they were ever wired up. Phase Z
-used up the original lettered sequence, so **AA** is the first two-letter
-follow-on phase; the convention continues AB, AC, … from here. What
-remains is the list below, none of it faked or half-built, all of it
-named honestly.
+already existed and only needed reuse, **AA** extending it a seventh
+time to all four tabs of Expenses, adding a `frequencyLabel()` helper
+for the recurring-expense frequency enum and catching three
+near-duplicate dictionary keys before they were ever wired up, and
+**AB** extending it an eighth time to Customer Ledger — the page
+Phase Y's Customers "Ledger" button links to — reusing all three prior
+real-value helpers (`ledgerTypeLabel()`, `paymentMethodLabel()`,
+`customerTypeLabel()`) at once and adding none of its own, plus one
+deliberate cross-field reuse of `customerTypeLabel()` for `Sale.mode`
+since the two fields share the same real Retail/Wholesale values. Phase
+Z used up the original lettered sequence, so **AA** is the first
+two-letter follow-on phase; the convention continues AC, AD, … from
+here. What remains is the list below, none of it faked or half-built,
+all of it named honestly.
 
-## Still not started after Phase 0/A–Z and AA
+## Still not started after Phase 0/A–Z and AA–AB
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
