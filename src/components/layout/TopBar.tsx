@@ -5,6 +5,7 @@ import { WheatFieldBackdrop } from "./WheatFieldBackdrop";
 import { DateTimePill } from "./DateTimePill";
 import { NotificationBell } from "./NotificationBell";
 import { ProfilePill } from "./ProfilePill";
+import { LanguageToggle } from "./LanguageToggle";
 import type { AuthUser, Settings } from "../../types";
 
 export function TopBar({ user, settings, onLogout }: {
@@ -33,6 +34,7 @@ export function TopBar({ user, settings, onLogout }: {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 px-6 py-3">
+        <LanguageToggle />
         <DateTimePill />
         <NotificationBell />
         <ProfilePill user={user} onLogout={onLogout} />

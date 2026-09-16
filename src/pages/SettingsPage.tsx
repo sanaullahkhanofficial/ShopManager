@@ -14,6 +14,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/ui/Toast";
 import { ReceiptPreview, type ReceiptData } from "../components/ReceiptPreview";
+import { useLang } from "../lib/i18n";
 import type { AuthUser, Settings, Location } from "../types";
 
 const TABS = [
@@ -44,12 +45,22 @@ const SAMPLE_RECEIPT: ReceiptData = {
 
 export function SettingsPage({ value, onSaved, user }: { value: Settings; onSaved: (s: Settings) => void; user: AuthUser }) {
   const { push } = useToast();
+  const { setLang } = useLang();
   const [x, setX] = useState<Settings>(value);
   const [tab, setTab] = useState("business");
   const [preview, setPreview] = useState(false);
   useEffect(() => setX(value), [value]);
 
   const update = (patch: Record<string, string>) => setX((v) => ({ ...v, ...patch } as Settings));
+  // Section 42: this saved preference and the live UI language are the same
+  // switch — the TopBar toggle changes this same underlying setLang(), so
+  // whichever one a user touches, the other reflects it. "en-ur" (bilingual)
+  // is stored as a preference but has no live third mode yet — the UI stays
+  // in whichever pure language it was already showing.
+  function updateLanguage(v: string) {
+    update({ language: v });
+    if (v === "en" || v === "ur") setLang(v);
+  }
 
   async function save() {
     const s = await api.settingsUpdate({ ...x, actorId: user.id }) as Settings;
@@ -107,7 +118,7 @@ export function SettingsPage({ value, onSaved, user }: { value: Settings; onSave
       {tab === "system" && (
         <div className="space-y-4">
           <div className="card grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <SelectField label="Default Language" value={x.language} onChange={(e) => update({ language: e.target.value })}>
+            <SelectField label="Default Language" value={x.language} onChange={(e) => updateLanguage(e.target.value)}>
               <option value="en">English</option><option value="ur">اردو</option><option value="en-ur">English + اردو</option>
             </SelectField>
             <SelectField label="Date Format" value={x.date_format || "DD MMM YYYY"} onChange={(e) => update({ date_format: e.target.value })}>

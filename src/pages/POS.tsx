@@ -7,13 +7,22 @@ import { SelectField } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { ReceiptPreview, type ReceiptData } from "../components/ReceiptPreview";
 import { useToast } from "../components/ui/Toast";
+import { useLang } from "../lib/i18n";
 import type { AuthUser, CartLine, Category, Customer, HeldSale, PaymentMethod, Product, Sale, SaleMode, Settings } from "../types";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "Bank Transfer", "JazzCash", "Easypaisa", "Cheque", "Credit", "Partial"];
 const QUICK_TENDER = [100, 500, 1000, 5000, 10000];
+// JazzCash/Easypaisa are brand names and stay untranslated; the rest map to
+// real dictionary entries so the Urdu POS screen shows real Urdu labels for
+// its payment method dropdown, not just the layout mirrored around English text.
+const PAYMENT_METHOD_KEYS: Partial<Record<PaymentMethod, "cashMethod" | "bankTransferMethod" | "chequeMethod" | "creditMethod" | "partialMethod">> = {
+  Cash: "cashMethod", "Bank Transfer": "bankTransferMethod", Cheque: "chequeMethod", Credit: "creditMethod", Partial: "partialMethod",
+};
 
 export function POS({ user, settings }: { user: AuthUser; settings: Settings }) {
   const { push } = useToast();
+  const { t, lang } = useLang();
+  const paymentMethodLabel = (m: PaymentMethod) => { const k = PAYMENT_METHOD_KEYS[m]; return k ? t(k) : m; };
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -227,7 +236,7 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
           onClick={() => setCategoryId("all")}
           className={`whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium ${categoryId === "all" ? "bg-brand-green-600 text-white" : "text-stone-600 hover:bg-stone-50"}`}
         >
-          All Products
+          {t("products")}
         </button>
         {categories.map((c) => (
           <button
@@ -235,7 +244,7 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
             onClick={() => setCategoryId(c.id)}
             className={`whitespace-nowrap rounded-md px-3 py-2 text-left text-sm font-medium ${categoryId === c.id ? "bg-brand-green-600 text-white" : "text-stone-600 hover:bg-stone-50"}`}
           >
-            {c.name}
+            {lang === "ur" ? (c.name_urdu || c.name) : c.name}
           </button>
         ))}
       </div>
@@ -247,7 +256,7 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
             <input
               ref={searchRef}
               className="input pl-9"
-              placeholder="Search or scan — English, اردو, SKU or barcode (Enter to scan-add)"
+              placeholder={t("posSearchPlaceholder")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -256,24 +265,24 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
           <div className="flex overflow-hidden rounded-md border border-stone-300">
             {(["Retail", "Wholesale"] as SaleMode[]).map((m) => (
               <button key={m} onClick={() => setMode(m)} className={`px-4 py-2 text-sm font-medium ${mode === m ? "bg-brand-green-600 text-white" : "bg-white text-stone-600 hover:bg-stone-50"}`}>
-                {m}
+                {t(m === "Retail" ? "retail" : "wholesale")}
               </button>
             ))}
           </div>
           <div className="flex overflow-hidden rounded-md border border-stone-300">
-            <button onClick={() => setView("grid")} className={`p-2 ${view === "grid" ? "bg-brand-green-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`} title="Grid view"><Grid2x2 size={15} /></button>
-            <button onClick={() => setView("list")} className={`p-2 ${view === "list" ? "bg-brand-green-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`} title="List view"><List size={15} /></button>
+            <button onClick={() => setView("grid")} className={`p-2 ${view === "grid" ? "bg-brand-green-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`} title={t("gridView")}><Grid2x2 size={15} /></button>
+            <button onClick={() => setView("list")} className={`p-2 ${view === "list" ? "bg-brand-green-600 text-white" : "bg-white text-stone-500 hover:bg-stone-50"}`} title={t("listView")}><List size={15} /></button>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-1 text-[11px] text-stone-400">
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F2 New</span>
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F3 Hold</span>
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F4 Recent</span>
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F5 Quote</span>
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F6 Search</span>
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F8 Print</span>
-          <span className="rounded border border-stone-200 px-1.5 py-0.5">F9 Complete</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F2 {t("shortcutNew")}</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F3 {t("hold")}</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F4 {t("shortcutRecent")}</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F5 {t("quote")}</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F6 {t("shortcutSearch")}</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F8 {t("shortcutPrint")}</span>
+          <span className="rounded border border-stone-200 px-1.5 py-0.5">F9 {t("shortcutComplete")}</span>
         </div>
 
         {view === "grid" ? (
@@ -289,10 +298,10 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
                 <span className="text-xs text-stone-400" dir="rtl">{p.name_urdu}</span>
                 <span className="text-xs text-stone-500">{p.package_size} {p.package_unit}</span>
                 <span className="mt-1 text-sm font-medium text-brand-green-700">{money(priceFor(p))}</span>
-                <span className="text-[11px] text-stone-400">{p.stock} {p.package_unit} in stock</span>
+                <span className="text-[11px] text-stone-400">{p.stock} {p.package_unit} {t("inStock")}</span>
               </button>
             ))}
-            {filtered.length === 0 && <p className="col-span-full py-8 text-center text-sm text-stone-400">No products match</p>}
+            {filtered.length === 0 && <p className="col-span-full py-8 text-center text-sm text-stone-400">{t("noProductsMatch")}</p>}
           </div>
         ) : (
           <div className="card divide-y divide-stone-100 p-0">
@@ -305,26 +314,26 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-brand-navy-900">{p.name} <span className="text-xs text-stone-400" dir="rtl">{p.name_urdu}</span></p>
-                  <p className="text-xs text-stone-500">{p.package_size} {p.package_unit} &middot; {p.stock} in stock</p>
+                  <p className="text-xs text-stone-500">{p.package_size} {p.package_unit} &middot; {p.stock} {t("inStock")}</p>
                 </div>
                 <span className="whitespace-nowrap text-sm font-medium text-brand-green-700">{money(priceFor(p))}</span>
               </button>
             ))}
-            {filtered.length === 0 && <p className="py-8 text-center text-sm text-stone-400">No products match</p>}
+            {filtered.length === 0 && <p className="py-8 text-center text-sm text-stone-400">{t("noProductsMatch")}</p>}
           </div>
         )}
       </div>
 
       <div className="card flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-brand-navy-900">Current Bill</h3>
+          <h3 className="text-sm font-semibold text-brand-navy-900">{t("currentBill")}</h3>
           <div className="flex gap-1">
-            <button onClick={() => openHeldList("HOLD")} className="rounded border border-stone-200 p-1.5 text-stone-500 hover:bg-stone-50" title="Held Bills (F3 to hold current)"><Pause size={14} /></button>
-            <button onClick={openRecent} className="rounded border border-stone-200 p-1.5 text-stone-500 hover:bg-stone-50" title="Recent Bills (F4)"><Receipt size={14} /></button>
+            <button onClick={() => openHeldList("HOLD")} className="rounded border border-stone-200 p-1.5 text-stone-500 hover:bg-stone-50" title={t("heldBillsTooltip")}><Pause size={14} /></button>
+            <button onClick={openRecent} className="rounded border border-stone-200 p-1.5 text-stone-500 hover:bg-stone-50" title={t("recentBillsTooltip")}><Receipt size={14} /></button>
           </div>
         </div>
         <div className="max-h-64 space-y-2 overflow-y-auto">
-          {cart.length === 0 && <p className="text-sm text-stone-400">Cart is empty</p>}
+          {cart.length === 0 && <p className="text-sm text-stone-400">{t("cartEmpty")}</p>}
           {cart.map((l) => (
             <div key={l.product_id} className="flex items-center gap-2 rounded-md border border-stone-100 p-2 text-sm">
               <div className="min-w-0 flex-1">
@@ -340,24 +349,24 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
           ))}
         </div>
 
-        <SelectField label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-          <option value="">Walk-in Customer</option>
+        <SelectField label={t("customer")} value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+          <option value="">{t("walkInCustomer")}</option>
           {customers.map((c) => <option key={c.id} value={c.id}>{c.shop_name || c.name} — {money(c.balance)}</option>)}
         </SelectField>
 
-        <SelectField label="Payment Method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
-          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+        <SelectField label={t("paymentMethod")} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{paymentMethodLabel(m)}</option>)}
         </SelectField>
 
         <label className="block">
-          <span className="label">Discount</span>
+          <span className="label">{t("discount")}</span>
           <input type="number" min={0} className="input" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
         </label>
 
         {paymentMethod !== "Credit" && (
           <>
             <label className="block">
-              <span className="label">Paid Amount</span>
+              <span className="label">{t("paidAmount")}</span>
               <input type="number" min={0} className="input" value={paid} onChange={(e) => setPaid(Number(e.target.value))} />
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -367,35 +376,35 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
                 </button>
               ))}
               <button type="button" onClick={() => setPaid(total)} className="rounded-md border border-brand-green-300 bg-brand-green-50 px-2.5 py-1 text-xs font-medium text-brand-green-700 hover:bg-brand-green-100">
-                Exact
+                {t("exact")}
               </button>
             </div>
           </>
         )}
 
         <div className="space-y-1 border-t border-stone-100 pt-2 text-sm">
-          <div className="flex justify-between text-stone-500"><span>Subtotal</span><span>{money(subtotal)}</span></div>
-          <div className="flex justify-between text-stone-500"><span>Discount</span><span>-{money(discount)}</span></div>
-          <div className="flex justify-between text-base font-semibold text-brand-navy-900"><span>Grand Total</span><span>{money(total)}</span></div>
+          <div className="flex justify-between text-stone-500"><span>{t("subtotal")}</span><span>{money(subtotal)}</span></div>
+          <div className="flex justify-between text-stone-500"><span>{t("discount")}</span><span>-{money(discount)}</span></div>
+          <div className="flex justify-between text-base font-semibold text-brand-navy-900"><span>{t("grandTotal")}</span><span>{money(total)}</span></div>
           {paymentMethod !== "Credit" && paid > total ? (
-            <div className="flex justify-between text-brand-green-700"><span>Change</span><span>{money(changeAmount)}</span></div>
+            <div className="flex justify-between text-brand-green-700"><span>{t("change")}</span><span>{money(changeAmount)}</span></div>
           ) : (
-            <div className="flex justify-between text-stone-500"><span>Remaining</span><span>{money(paymentMethod === "Credit" ? total : remaining)}</span></div>
+            <div className="flex justify-between text-stone-500"><span>{t("remaining")}</span><span>{money(paymentMethod === "Credit" ? total : remaining)}</span></div>
           )}
         </div>
 
         <div className="flex gap-2">
           <Button className="flex-1" onClick={() => holdBill("HOLD")} disabled={!cart.length} title="Hold Bill (F3)">
-            <Pause size={15} /> Hold
+            <Pause size={15} /> {t("hold")}
           </Button>
           <Button className="flex-1" onClick={() => holdBill("QUOTATION")} disabled={!cart.length} title="Quotation (F5)">
-            <Receipt size={15} /> Quote
+            <Receipt size={15} /> {t("quote")}
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button className="flex-1" onClick={clearCart} disabled={!cart.length}>Clear</Button>
+          <Button className="flex-1" onClick={clearCart} disabled={!cart.length}>{t("clear")}</Button>
           <Button variant="primary" className="flex-1" onClick={saveAndPrint} disabled={!cart.length || busy} title="Complete Sale (F9)">
-            <Printer size={15} /> Save &amp; Print
+            <Printer size={15} /> {t("saveAndPrint")}
           </Button>
         </div>
       </div>
@@ -403,21 +412,21 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
       {receipt && <ReceiptPreview data={receipt} settings={settings} />}
 
       {heldOpen && (
-        <Modal title={heldType === "QUOTATION" ? "Quotations" : "Held Bills"} onClose={() => setHeldOpen(false)} wide>
+        <Modal title={heldType === "QUOTATION" ? t("quotationsTitle") : t("heldBillsTitle")} onClose={() => setHeldOpen(false)} wide>
           <div className="mb-3 flex gap-2">
-            <button onClick={() => openHeldList("HOLD")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${heldType === "HOLD" ? "bg-brand-green-600 text-white" : "border border-stone-300 text-stone-600"}`}>Held Bills</button>
-            <button onClick={() => openHeldList("QUOTATION")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${heldType === "QUOTATION" ? "bg-brand-green-600 text-white" : "border border-stone-300 text-stone-600"}`}>Quotations</button>
+            <button onClick={() => openHeldList("HOLD")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${heldType === "HOLD" ? "bg-brand-green-600 text-white" : "border border-stone-300 text-stone-600"}`}>{t("heldBillsTitle")}</button>
+            <button onClick={() => openHeldList("QUOTATION")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${heldType === "QUOTATION" ? "bg-brand-green-600 text-white" : "border border-stone-300 text-stone-600"}`}>{t("quotationsTitle")}</button>
           </div>
           <div className="max-h-96 space-y-2 overflow-y-auto">
-            {held.length === 0 && <p className="py-6 text-center text-sm text-stone-400">Nothing here yet</p>}
+            {held.length === 0 && <p className="py-6 text-center text-sm text-stone-400">{t("nothingHereYet")}</p>}
             {held.map((h) => (
               <div key={h.id} className="flex items-center justify-between gap-3 rounded-md border border-stone-200 p-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-navy-900">{h.hold_no} <span className="font-normal text-stone-400">&middot; {h.customer_name || "Walk-in"}</span></p>
-                  <p className="text-xs text-stone-500">{h.items.length} item(s) &middot; {h.mode} &middot; {new Date(h.created_at).toLocaleString()}</p>
+                  <p className="text-sm font-semibold text-brand-navy-900">{h.hold_no} <span className="font-normal text-stone-400">&middot; {h.customer_name || t("walkIn")}</span></p>
+                  <p className="text-xs text-stone-500">{h.items.length} item(s) &middot; {t(h.mode === "Retail" ? "retail" : "wholesale")} &middot; {new Date(h.created_at).toLocaleString()}</p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button variant="primary" onClick={() => resumeHeld(h)}>Resume</Button>
+                  <Button variant="primary" onClick={() => resumeHeld(h)}>{t("resume")}</Button>
                   <Button variant="danger" onClick={() => deleteHeld(h)}><Trash2 size={14} /></Button>
                 </div>
               </div>
@@ -427,16 +436,16 @@ export function POS({ user, settings }: { user: AuthUser; settings: Settings }) 
       )}
 
       {recentOpen && (
-        <Modal title="Recent Bills" onClose={() => setRecentOpen(false)} wide>
+        <Modal title={t("recentBillsTitle")} onClose={() => setRecentOpen(false)} wide>
           <div className="max-h-96 space-y-2 overflow-y-auto">
-            {recentSales.length === 0 && <p className="py-6 text-center text-sm text-stone-400">No sales yet</p>}
+            {recentSales.length === 0 && <p className="py-6 text-center text-sm text-stone-400">{t("noSalesYet")}</p>}
             {recentSales.map((s) => (
               <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border border-stone-200 p-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-navy-900">{s.invoice_no} <span className="font-normal text-stone-400">&middot; {s.customer_name || "Walk-in"}</span></p>
-                  <p className="text-xs text-stone-500">{money(s.total)} &middot; {s.payment_method} &middot; {new Date(s.sale_date).toLocaleString()}</p>
+                  <p className="text-sm font-semibold text-brand-navy-900">{s.invoice_no} <span className="font-normal text-stone-400">&middot; {s.customer_name || t("walkIn")}</span></p>
+                  <p className="text-xs text-stone-500">{money(s.total)} &middot; {paymentMethodLabel(s.payment_method)} &middot; {new Date(s.sale_date).toLocaleString()}</p>
                 </div>
-                <Button onClick={() => reprint(s.id)}><Printer size={14} /> Reprint</Button>
+                <Button onClick={() => reprint(s.id)}><Printer size={14} /> {t("reprint")}</Button>
               </div>
             ))}
           </div>

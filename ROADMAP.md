@@ -1122,6 +1122,63 @@ inert form fields:
   figure that tab was already displaying. Zero console errors beyond the
   one harmless favicon 404.
 
+## Phase T — Real Urdu localization for the POS screen (this pass, real, tested)
+
+- **The headline change, found before it was fixed**: every earlier phase's
+  RTL/i18n infrastructure (`LanguageProvider`, `useLang()`, `dir` flipping
+  the whole app layout) was real — but nothing in the entire app ever
+  called `setLang()`. There was no language switcher anywhere in the UI.
+  Switching to Urdu was completely unreachable without opening devtools
+  and setting `localStorage` by hand; had this phase only translated POS
+  strings without also fixing this, the translations themselves would
+  have been just as unreachable. A real toggle button now lives in the
+  TopBar (`LanguageToggle.tsx`) — always visible, one click, immediately
+  flips the live language and `dir` for the whole app.
+- **A second, related dead field found and connected in the same pass**:
+  Settings' "Default Language" dropdown (real since Phase B) wrote
+  `settings.language` to the database, but nothing ever read that value
+  to affect the live UI — a separate, silently disconnected control
+  sitting right next to the one that actually worked. It now also calls
+  the same `setLang()` the TopBar toggle uses, so either control reflects
+  the other. `en-ur` (bilingual) is honestly left as a stored-only
+  preference — the live system only supports two full-language modes, not
+  a mixed third one, and inventing a fake bilingual rendering mode wasn't
+  in scope here.
+- **The POS screen itself — the single highest-traffic page for day-to-day
+  cashier/staff use — is now genuinely bilingual**, not just RTL-flipped
+  around English text. ~40 real strings were added to the dictionary
+  (`src/lib/i18n.tsx`) and wired through `POS.tsx` via `t()`: every field
+  label, button, keyboard-shortcut hint, modal title, empty state, and the
+  hardcoded payment-method list (JazzCash/Easypaisa deliberately left
+  untranslated as brand names; Cash/Bank Transfer/Cheque/Credit/Partial
+  translated for real). Category buttons show each category's real
+  `name_urdu` when Urdu is active, the same field products already had.
+- **Scope decision, stated plainly**: this phase is honestly named "the
+  POS screen," not "full app localization" — every other page still shows
+  mostly English even with Urdu selected (the `dir` flip still applies
+  app-wide, so those pages render mirrored-but-English, an improvement
+  over before only in that Urdu is now reachable at all, not that every
+  page is translated). Extending this same dictionary-and-`t()` pattern to
+  the rest of the app is real, bounded, repeatable work for a future
+  phase — not a different kind of problem, just more of the same one.
+- **A real, pre-existing bug surfaced by finally making RTL mode
+  reachable**: with real content flowing through it in RTL for the first
+  time, the TopBar's business-name block visibly overlaps the logo. This
+  layout issue has existed since Phase A but nobody — human or agent —
+  could have seen it while the toggle that reveals it was itself
+  unreachable. Named here honestly rather than fixed inside this phase,
+  since it's a TopBar shell layout issue, not a translation-content one,
+  and deserves its own focused pass rather than a rushed fix bundled in.
+- Verified with `npm run typecheck`, `node --check electron/main.cjs`, and
+  the full nineteen-suite backend regression run (zero regressions, as
+  expected — this phase touched no backend file). Visual smoke test
+  (Playwright): the real TopBar toggle button switches the POS screen
+  from English to genuinely Urdu-labeled text with `dir="rtl"` confirmed
+  on `<html>`; the choice survives a full page reload (real `localStorage`
+  persistence, not just in-memory state); and toggling back to English
+  confirms the button relabels itself and `dir` reverts correctly. Zero
+  console errors beyond the one harmless favicon 404.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1141,8 +1198,14 @@ These are named explicitly so nobody mistakes silence for "it exists":
   integration for the desktop build does not exist. (Phase S's "Print
   Report"/PDF export uses this same browser print path deliberately —
   it's the real, working fallback, not a placeholder.)
-- **Full UI localization.** The Urdu toggle covers navigation/chrome and
-  product names, not every label in every form.
+- **Full UI localization.** Since Phase T, the Urdu toggle is real and
+  reachable (a TopBar button, not a dead Settings field) and the POS
+  screen is genuinely bilingual; every other page still renders RTL-
+  mirrored but largely in English — extending the same dictionary/`t()`
+  pattern app-wide is real, bounded work for a future phase.
+- **TopBar RTL layout polish.** The business-name block visibly overlaps
+  the logo in RTL mode — a real, pre-existing layout bug only visible now
+  that Phase T made the language toggle reachable for the first time.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
@@ -1154,7 +1217,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–S — all done
+## Page-level phases (A–N) plus Phase O–T — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1165,17 +1228,20 @@ Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
 barcode rendering + receipt polish — all done (see sections above). **N**
 was the last lettered phase in the original plan; **O** (client-side
 per-role UI gating), **P** (real AI Business Assistant), **Q** (real
-Reports CSV export), **R** (real backup encryption + restore) and **S**
-(data-grid column visibility + real Print/PDF export) followed as direct,
-named follow-ons — **O** closing Phase M's own stated gap, **P** turning
-the Section 59–60 placeholder into a genuinely working page, **Q** wiring
-the `reports.export` permission (real since Phase 0, never acted on) to
-an actual feature, **R** turning "Backup Now" from a one-way copy into an
+Reports CSV export), **R** (real backup encryption + restore), **S**
+(data-grid column visibility + real Print/PDF export) and **T** (real,
+reachable Urdu localization for POS) followed as direct, named follow-ons
+— **O** closing Phase M's own stated gap, **P** turning the Section 59–60
+placeholder into a genuinely working page, **Q** wiring the
+`reports.export` permission (real since Phase 0, never acted on) to an
+actual feature, **R** turning "Backup Now" from a one-way copy into an
 actual, restorable, optionally-encrypted disaster-recovery path, **S**
-closing out Section 53's two remaining real gaps. What remains is the
-list below, none of it faked or half-built, all of it named honestly.
+closing out Section 53's two remaining real gaps, **T** making the
+already-built RTL/i18n system reachable for the first time and genuinely
+bilingual on the highest-traffic screen. What remains is the list below,
+none of it faked or half-built, all of it named honestly.
 
-## Still not started after Phase 0/A–S
+## Still not started after Phase 0/A–T
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.

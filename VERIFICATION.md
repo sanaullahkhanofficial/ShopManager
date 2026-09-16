@@ -563,6 +563,40 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase T checks (this session)
+- This phase touched no backend file — `i18n.tsx`, `POS.tsx`,
+  `SettingsPage.tsx`, `TopBar.tsx` and the new `LanguageToggle.tsx` only —
+  so there is no new `scripts/test-phaseT.cjs`. Verification: `npm run
+  typecheck` and `node --check electron/main.cjs` (both clean), the full
+  existing nineteen-suite regression run re-executed and confirmed to
+  pass unchanged (zero backend regression, as expected), and a Playwright
+  interaction test as the primary check, since the real behavior — a
+  language toggle actually switching the live UI, `dir` flipping to
+  `rtl`, and the choice surviving a reload — can only be observed in a
+  rendered, interactive browser context.
+- **The real finding this phase started with**: before any POS strings
+  were touched, a search for every call site of `setLang` across the
+  entire `src/` tree turned up exactly one — its own definition in
+  `i18n.tsx`. The RTL/dictionary system was fully built and had been
+  since an earlier phase, but genuinely unreachable from the UI; a
+  separate search confirmed Settings' "Default Language" dropdown wrote
+  `settings.language` to the database while nothing ever read that value
+  back to affect the live language either. Both were real, verified via
+  direct code search before any fix was written, not assumed.
+- Visual smoke test (Playwright): clicking the new TopBar language toggle
+  on the POS screen is confirmed to flip `document.documentElement`'s
+  `dir` attribute from `ltr` to `rtl` and to genuinely relabel on-screen
+  text into real Urdu strings (not just mirror the English layout) —
+  screenshots confirm "Current Bill" → "موجودہ بل", "Discount" → "رعایت",
+  "Cash" → "نقد", "Save & Print" → "محفوظ کریں اور پرنٹ کریں", and the
+  seeded category's real `name_urdu` field rendering in the category
+  sidebar. Reloading the page is confirmed to preserve `dir="rtl"` (real
+  `localStorage` persistence), and toggling back to English is confirmed
+  to relabel the button and revert `dir` to `ltr` correctly. Zero console
+  errors beyond the one harmless favicon 404.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
