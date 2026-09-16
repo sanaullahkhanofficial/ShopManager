@@ -597,6 +597,35 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase U checks (this session)
+- Diagnosed with a Playwright script that read real DOM geometry
+  (`getBoundingClientRect()`) rather than re-inspecting a screenshot: the
+  Sidebar logo and business-name text boxes were confirmed to have zero
+  overlap in RTL mode — ruling out Phase T's original "overlap" diagnosis
+  before writing any fix. The same script then confirmed the actual
+  cause: the rendered text read "…l Manan & Abdul Hanan" (truncated from
+  the wrong end) because CSS `text-overflow: ellipsis` truncates relative
+  to container direction, and the container was RTL while the business
+  name is a fixed Roman-script string.
+- Fix verified directly, not assumed: after adding `dir="ltr"` and
+  `text-left` to the two affected Sidebar `<p>` elements, the same
+  diagnostic script re-run against the rebuilt app confirmed the text now
+  reads "Haji Abdul Manan & Ab…" — truncating from the natural end. A
+  second run in default English/LTR mode confirmed pixel-identical
+  rendering to before the fix, proving the change is RTL-only.
+- Checked, not assumed, that no other real bug existed: `TopBar.tsx` and
+  `Footer.tsx` were both grepped for the same `truncate` class on
+  `business_name`/`business_title` text — neither has it (TopBar wraps
+  instead of truncating; Footer doesn't constrain width), so neither
+  needed the same fix.
+- No new `scripts/test-phaseU.cjs`: this phase touched one frontend file
+  (`Sidebar.tsx`) and no backend code. Verified via `npm run typecheck`,
+  `node --check electron/main.cjs`, and the full existing nineteen-suite
+  backend regression run re-executed and confirmed to pass unchanged
+  (zero regression, as expected).
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

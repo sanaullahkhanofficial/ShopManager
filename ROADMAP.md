@@ -1163,12 +1163,12 @@ inert form fields:
   phase — not a different kind of problem, just more of the same one.
 - **A real, pre-existing bug surfaced by finally making RTL mode
   reachable**: with real content flowing through it in RTL for the first
-  time, the TopBar's business-name block visibly overlaps the logo. This
-  layout issue has existed since Phase A but nobody — human or agent —
-  could have seen it while the toggle that reveals it was itself
-  unreachable. Named here honestly rather than fixed inside this phase,
-  since it's a TopBar shell layout issue, not a translation-content one,
-  and deserves its own focused pass rather than a rushed fix bundled in.
+  time, the Sidebar's business-name text visibly looked wrong next to the
+  logo. This existed since Phase A but nobody — human or agent — could
+  have seen it while the toggle that reveals it was itself unreachable.
+  Named here honestly rather than fixed inside this phase, since it
+  needed its own diagnosis rather than a rushed fix bundled in — Phase U
+  found the real root cause (not an overlap) and fixed it.
 - Verified with `npm run typecheck`, `node --check electron/main.cjs`, and
   the full nineteen-suite backend regression run (zero regressions, as
   expected — this phase touched no backend file). Visual smoke test
@@ -1178,6 +1178,41 @@ inert form fields:
   persistence, not just in-memory state); and toggling back to English
   confirms the button relabels itself and `dir` reverts correctly. Zero
   console errors beyond the one harmless favicon 404.
+
+## Phase U — Fix the real Sidebar RTL bug Phase T found (this pass, real, tested)
+
+- **The correct diagnosis, found by measuring rather than re-reading the
+  screenshot.** Phase T's note called this an "overlap" from a single
+  compressed screenshot; a Playwright diagnostic script that read the
+  actual DOM geometry (`getBoundingClientRect()` on the logo and text
+  elements) showed zero overlap — the logo and text boxes sit cleanly
+  side by side with the expected gap between them. The real bug: the
+  Sidebar's business-name text is a fixed Roman-script string ("Haji
+  Abdul Manan & Abdul Hanan"), and CSS `text-overflow: ellipsis`
+  truncates relative to the *container's* direction, not the text's own
+  script. Inside the RTL page, that flipped which end got cut — instead
+  of "Haji Abdul Manan & Ab…" it rendered "…l Manan & Abdul Hanan",
+  chopping off the readable start of the name and keeping the tail.
+- **The fix is two attributes, not a layout rewrite**: `dir="ltr"` on the
+  two Sidebar `<p>` elements carrying the business name and tagline tells
+  the browser to treat that specific text run as LTR for truncation and
+  bidi purposes, while the rest of the RTL page is untouched; `text-left`
+  makes the alignment match. This is the standard, correct pattern for
+  embedding fixed Roman-script content (a business name that isn't itself
+  translated) inside an otherwise-RTL page — not a hack.
+- **Scope checked, not assumed**: before fixing anything, every other
+  place `business_name`/`business_title` renders (`TopBar.tsx`,
+  `Footer.tsx`) was checked for the same `truncate` class — neither has
+  it (TopBar wraps instead of truncating, Footer doesn't constrain
+  width), so neither was actually broken. Only the two genuinely affected
+  elements were touched.
+- Verified with `npm run typecheck`, `node --check electron/main.cjs`,
+  and the full nineteen-suite backend regression run (zero regressions —
+  this phase touched one frontend file). A Playwright diagnostic
+  confirmed the fix directly: before, the rendered text read "…l Manan &
+  Abdul Hanan"; after, it correctly reads "Haji Abdul Manan & Ab…" — and
+  a matching check in default English/LTR mode confirmed zero visual
+  change there, so the fix is RTL-only as intended.
 
 ## Deliberately deferred — not implemented, not faked
 
@@ -1203,9 +1238,6 @@ These are named explicitly so nobody mistakes silence for "it exists":
   screen is genuinely bilingual; every other page still renders RTL-
   mirrored but largely in English — extending the same dictionary/`t()`
   pattern app-wide is real, bounded work for a future phase.
-- **TopBar RTL layout polish.** The business-name block visibly overlaps
-  the logo in RTL mode — a real, pre-existing layout bug only visible now
-  that Phase T made the language toggle reachable for the first time.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
@@ -1217,7 +1249,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–T — all done
+## Page-level phases (A–N) plus Phase O–U — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1229,19 +1261,22 @@ barcode rendering + receipt polish — all done (see sections above). **N**
 was the last lettered phase in the original plan; **O** (client-side
 per-role UI gating), **P** (real AI Business Assistant), **Q** (real
 Reports CSV export), **R** (real backup encryption + restore), **S**
-(data-grid column visibility + real Print/PDF export) and **T** (real,
-reachable Urdu localization for POS) followed as direct, named follow-ons
-— **O** closing Phase M's own stated gap, **P** turning the Section 59–60
+(data-grid column visibility + real Print/PDF export), **T** (real,
+reachable Urdu localization for POS) and **U** (fixed the real Sidebar
+RTL bug Phase T found) followed as direct, named follow-ons — **O**
+closing Phase M's own stated gap, **P** turning the Section 59–60
 placeholder into a genuinely working page, **Q** wiring the
 `reports.export` permission (real since Phase 0, never acted on) to an
 actual feature, **R** turning "Backup Now" from a one-way copy into an
 actual, restorable, optionally-encrypted disaster-recovery path, **S**
 closing out Section 53's two remaining real gaps, **T** making the
 already-built RTL/i18n system reachable for the first time and genuinely
-bilingual on the highest-traffic screen. What remains is the list below,
-none of it faked or half-built, all of it named honestly.
+bilingual on the highest-traffic screen, **U** correctly diagnosing and
+fixing the RTL text-truncation bug Phase T's screenshot first exposed.
+What remains is the list below, none of it faked or half-built, all of it
+named honestly.
 
-## Still not started after Phase 0/A–T
+## Still not started after Phase 0/A–U
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.

@@ -88,8 +88,11 @@ export function Sidebar({ page, setPage, user }: { page: PageId; setPage: (p: Pa
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-4">
         <Logo size={38} />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold leading-tight text-white">Haji Abdul Manan &amp; Abdul Hanan</p>
-          <p className="truncate text-[11px] leading-tight text-brand-wheat-300">Atta Dealer Pishin</p>
+          {/* dir="ltr": this is a fixed Roman-script business name, not translated
+              content — without it, text-overflow: ellipsis truncates from the
+              wrong end (the start of the name) when the page direction is RTL. */}
+          <p dir="ltr" className="truncate text-left text-sm font-semibold leading-tight text-white">Haji Abdul Manan &amp; Abdul Hanan</p>
+          <p dir="ltr" className="truncate text-left text-[11px] leading-tight text-brand-wheat-300">Atta Dealer Pishin</p>
         </div>
       </div>
 
