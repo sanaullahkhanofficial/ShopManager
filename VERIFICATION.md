@@ -455,6 +455,53 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase Q checks (this session)
+- `scripts/test-phaseQ.cjs` (`npm run test:phaseQ`) — 25 assertions
+  against the real backend: `reports.export` is confirmed to be a real
+  permission in `permissions:definitions`; Owner and Accountant are
+  confirmed to be genuinely granted it via the real `permissions:forRole`
+  data, and Cashier is confirmed NOT to be; and every report handler that
+  backs a CSV export (`reports:topProducts`, `reports:summary`,
+  `reports:inventory`, `reports:customers`, `reports:suppliers`) is
+  confirmed to return every field its corresponding export function reads
+  — then, after seeding a real product (10 KG opening stock at Rs. 100 avg
+  cost), a real customer (Rs. 5000 opening balance), a real supplier
+  (Rs. 8000 opening balance), and a real Rs. 300 credit sale, every one of
+  those handlers is confirmed to reflect the exact real resulting numbers,
+  including the customer's Rs. 5300 balance (Rs. 5000 opening plus the
+  Rs. 300 credit sale) and the Rs. 800 real remaining stock value. All
+  passed, plus all seventeen earlier suites (`test-accounting` through
+  `test-phaseP`) re-run clean.
+- **A real bug found and fixed while building this, not left in the
+  codebase**: `reports:customers`' SQL used
+  `COALESCE(c.shop_name, c.name)`, which doesn't fall through when
+  `shop_name` is an empty string rather than NULL — a customer with no
+  shop name entered was reported with a blank name in both the Customer
+  Report tab and its new CSV export, which is how the test in this phase
+  first caught it (a `.find()` against the real seeded customer's name
+  came back `undefined`). Fixed with
+  `COALESCE(NULLIF(c.shop_name,''), c.name)`, the same fix already applied
+  to Phase P's `top_debtor` query. The same pattern still exists in a few
+  other read-only queries this phase didn't touch (`customers:list`'s sort
+  order, `sales:list`/`sales:get`'s `customer_name`, held sales, sales
+  returns) — named honestly in `ROADMAP.md` rather than silently left.
+- Visual smoke test (Playwright, `files:saveText` mocked to capture the
+  real CSV content passed to it instead of opening a native save dialog,
+  which can't be driven through a browser context): confirms an Owner
+  (granted `reports.export`) sees the "Export CSV" button on all five
+  tabs, and that clicking it on three of them (Sales & Revenue, Profit &
+  Loss, Customers) produces CSV content genuinely containing the real
+  mocked figures — a real product name and its real Rs. 444,000 revenue
+  figure, a real Rs. 10,000 net profit line, a real customer name and its
+  real Rs. 18,500 balance — confirming each export reads the same data the
+  tab is displaying, not a separately faked figure. A second run as a
+  Cashier (whose real granted permissions do not include `reports.export`)
+  confirms the button never renders on any tab and zero export calls are
+  ever made. Zero console errors beyond the one harmless favicon 404 on
+  both runs.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

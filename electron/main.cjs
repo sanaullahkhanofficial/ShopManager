@@ -1440,7 +1440,7 @@ function registerIpc() {
   ipcMain.handle("reports:customers", (_, range) => {
     const from = range.from, to = range.to;
     return db.prepare(`
-      SELECT c.id, COALESCE(c.shop_name,c.name) name, c.customer_type,
+      SELECT c.id, COALESCE(NULLIF(c.shop_name,''),c.name) name, c.customer_type,
         COALESCE(c.opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance,
         COALESCE((SELECT SUM(total) FROM sales s WHERE s.customer_id=c.id AND s.status='COMPLETED' AND s.sale_date BETWEEN ? AND ?),0) totalPurchases,
         COALESCE((SELECT SUM(amount) FROM customer_transactions t WHERE t.customer_id=c.id AND t.type='PAYMENT' AND date(t.created_at) BETWEEN ? AND ?),0) totalPayments,

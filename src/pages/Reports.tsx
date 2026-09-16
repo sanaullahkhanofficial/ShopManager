@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, PackageX, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
+import Papa from "papaparse";
+import { AlertTriangle, Download, PackageX, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
 import { api } from "../lib/api";
 import { money, formatDate, todayIso } from "../lib/format";
 import { Field } from "../components/ui/Field";
 import { StatCard } from "../components/ui/StatCard";
 import { Tabs } from "../components/ui/Tabs";
 import { DataTable } from "../components/ui/DataTable";
+import { Button } from "../components/ui/Button";
 import { TrendBarChart, SplitBar } from "../components/ui/charts";
-import type { CustomerReportRow, InventoryReport, ReportCompare, ReportSummary, ReportTrend, SupplierReportRow, TopProductRow } from "../types";
+import { usePermissionSet } from "../lib/permissions";
+import type { AuthUser, CustomerReportRow, InventoryReport, ReportCompare, ReportSummary, ReportTrend, SupplierReportRow, TopProductRow } from "../types";
 
 interface Range { from: string; to: string }
 
@@ -33,6 +36,20 @@ function RangePicker({ range, onChange }: { range: Range; onChange: (r: Range) =
   );
 }
 
+// Section 53 / reports.export permission (real since Phase 0/M, but never
+// wired to anything until now): each tab renders this only when the
+// signed-in role actually has reports.export, and it exports exactly the
+// real data that tab already fetched and is displaying — never a second,
+// separately-computed copy of the numbers.
+function ExportButton({ canExport, onExport }: { canExport: boolean; onExport: () => void }) {
+  if (!canExport) return null;
+  return (
+    <Button variant="ghost" className="text-xs" onClick={onExport}>
+      <Download size={14} /> Export CSV
+    </Button>
+  );
+}
+
 function trendLabel(label: string, granularity: "day" | "month") {
   if (granularity === "month") {
     const [y, m] = label.split("-");
@@ -41,7 +58,7 @@ function trendLabel(label: string, granularity: "day" | "month") {
   return new Date(label + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-function SalesRevenueTab({ range }: { range: Range }) {
+function SalesRevenueTab({ range, canExport }: { range: Range; canExport: boolean }) {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [compare, setCompare] = useState<ReportCompare | null>(null);
   const [trend, setTrend] = useState<ReportTrend | null>(null);
@@ -54,10 +71,24 @@ function SalesRevenueTab({ range }: { range: Range }) {
     api.reportsTopProducts({ ...range, limit: 10 }).then((r) => setTopProducts(r as TopProductRow[]));
   }, [range.from, range.to]);
 
+  function exportCsv() {
+    if (!summary) return;
+    const summaryRows = [
+      { Metric: "Sales", Value: summary.sales }, { Metric: "Net Sales", Value: summary.netSales },
+      { Metric: "Cash Sales", Value: summary.cashSales }, { Metric: "Credit Sales", Value: summary.creditSales },
+      { Metric: "Retail Sales", Value: summary.retailSales }, { Metric: "Wholesale Sales", Value: summary.wholesaleSales },
+      { Metric: "Sales Returns", Value: summary.salesReturns }, { Metric: "Gross Margin %", Value: summary.grossMarginPct.toFixed(1) },
+    ];
+    const productRows = topProducts.map((p) => ({ Product: p.name, "Product (Urdu)": p.name_urdu, "Qty Sold": p.qty, Unit: p.package_unit, Revenue: p.revenue }));
+    const csv = [`Sales & Revenue Report,${range.from} to ${range.to}`, "", "Summary", Papa.unparse(summaryRows), "", "Top Selling Products", Papa.unparse(productRows)].join("\n");
+    api.filesSaveText({ title: "Export Sales & Revenue Report", defaultPath: `sales-report-${range.from}-to-${range.to}.csv`, content: csv });
+  }
+
   if (!summary) return null;
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Sales" value={money(summary.sales)} hint={compare && <DeltaBadge pct={compare.deltaPct.sales} />} tone="green" />
         <StatCard label="Net Sales" value={money(summary.netSales)} />
@@ -94,7 +125,7 @@ function SalesRevenueTab({ range }: { range: Range }) {
   );
 }
 
-function ProfitLossTab({ range }: { range: Range }) {
+function ProfitLossTab({ range, canExport }: { range: Range; canExport: boolean }) {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [compare, setCompare] = useState<ReportCompare | null>(null);
 
@@ -103,10 +134,24 @@ function ProfitLossTab({ range }: { range: Range }) {
     api.reportsCompare(range).then((r) => setCompare(r as ReportCompare));
   }, [range.from, range.to]);
 
+  function exportCsv() {
+    if (!summary) return;
+    const rows = [
+      { Line: "Sales Revenue", Amount: summary.sales }, { Line: "Sales Returns", Amount: -summary.salesReturns },
+      { Line: "Net Sales", Amount: summary.netSales }, { Line: "Cost of Goods Sold", Amount: -summary.cogs },
+      { Line: "Gross Profit", Amount: summary.grossProfit }, { Line: "Gross Margin %", Amount: summary.grossMarginPct.toFixed(1) },
+      { Line: "Operating Expenses", Amount: -summary.expenses }, { Line: "Net Profit", Amount: summary.netProfit },
+      { Line: "Net Margin %", Amount: summary.netMarginPct.toFixed(1) },
+    ];
+    const csv = `Profit & Loss Statement,${range.from} to ${range.to}\n\n${Papa.unparse(rows)}`;
+    api.filesSaveText({ title: "Export Profit & Loss Statement", defaultPath: `profit-loss-${range.from}-to-${range.to}.csv`, content: csv });
+  }
+
   if (!summary) return null;
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Sales" value={money(summary.sales)} tone="green" hint={compare && <DeltaBadge pct={compare.deltaPct.sales} />} />
         <StatCard label="Gross Profit" value={money(summary.grossProfit)} hint={compare && <DeltaBadge pct={compare.deltaPct.grossProfit} />} />
@@ -159,14 +204,25 @@ function Row({ label, value, bold }: { label: string; value: number | null; bold
   );
 }
 
-function InventoryTab({ range }: { range: Range }) {
+function InventoryTab({ range, canExport }: { range: Range; canExport: boolean }) {
   const [data, setData] = useState<InventoryReport | null>(null);
 
   useEffect(() => { api.reportsInventory(range).then((r) => setData(r as InventoryReport)); }, [range.from, range.to]);
+
+  function exportCsv() {
+    if (!data) return;
+    const rows = data.products.map((p) => ({
+      Product: p.name, "Product (Urdu)": p.name_urdu, Category: p.category_name || "", Stock: p.stock, Unit: p.package_unit,
+      "Avg Cost": p.avg_cost, Value: p.value, Status: p.stock <= 0 ? "Out of Stock" : p.stock <= p.min_stock ? "Low" : "OK",
+    }));
+    api.filesSaveText({ title: "Export Inventory Report", defaultPath: `inventory-report-${range.from}-to-${range.to}.csv`, content: Papa.unparse(rows) });
+  }
+
   if (!data) return null;
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Stock Value" value={money(data.totalValue)} tone="green" />
         <StatCard label="Active Products" value={String(data.totalProducts)} />
@@ -224,15 +280,24 @@ function InventoryTab({ range }: { range: Range }) {
   );
 }
 
-function CustomerReportTab({ range }: { range: Range }) {
+function CustomerReportTab({ range, canExport }: { range: Range; canExport: boolean }) {
   const [rows, setRows] = useState<CustomerReportRow[]>([]);
   useEffect(() => { api.reportsCustomers(range).then((r) => setRows(r as CustomerReportRow[])); }, [range.from, range.to]);
 
   const totalReceivables = rows.reduce((a, r) => a + Math.max(0, r.balance), 0);
   const overdueCount = rows.filter((r) => r.balance > 0).length;
 
+  function exportCsv() {
+    const csvRows = rows.map((r) => ({
+      Customer: r.name, Type: r.customer_type, "Purchases (range)": r.totalPurchases, "Payments (range)": r.totalPayments,
+      "Outstanding Balance": r.balance, "Last Purchase": r.lastPurchaseDate || "",
+    }));
+    api.filesSaveText({ title: "Export Customer Report", defaultPath: `customer-report-${range.from}-to-${range.to}.csv`, content: Papa.unparse(csvRows) });
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Total Receivables" value={money(totalReceivables)} tone="danger" />
         <StatCard label="Customers Owing" value={String(overdueCount)} />
@@ -260,15 +325,24 @@ function CustomerReportTab({ range }: { range: Range }) {
   );
 }
 
-function SupplierReportTab({ range }: { range: Range }) {
+function SupplierReportTab({ range, canExport }: { range: Range; canExport: boolean }) {
   const [rows, setRows] = useState<SupplierReportRow[]>([]);
   useEffect(() => { api.reportsSuppliers(range).then((r) => setRows(r as SupplierReportRow[])); }, [range.from, range.to]);
 
   const totalPayables = rows.reduce((a, r) => a + Math.max(0, r.balance), 0);
   const owingCount = rows.filter((r) => r.balance > 0).length;
 
+  function exportCsv() {
+    const csvRows = rows.map((r) => ({
+      Supplier: r.name, Category: r.category || "", "Purchases (range)": r.totalPurchases, "Payments (range)": r.totalPayments,
+      "Outstanding Payable": r.balance, "Last Purchase": r.lastPurchaseDate || "",
+    }));
+    api.filesSaveText({ title: "Export Supplier Report", defaultPath: `supplier-report-${range.from}-to-${range.to}.csv`, content: Papa.unparse(csvRows) });
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Total Payables" value={money(totalPayables)} tone="danger" />
         <StatCard label="Suppliers Owed" value={String(owingCount)} />
@@ -296,9 +370,11 @@ function SupplierReportTab({ range }: { range: Range }) {
   );
 }
 
-export function Reports() {
+export function Reports({ user }: { user: AuthUser }) {
   const [tab, setTab] = useState("sales");
   const [range, setRange] = useState<Range>({ from: firstOfMonth(), to: todayIso() });
+  const perms = usePermissionSet(user.role);
+  const canExport = !!perms?.has("reports.export");
 
   const tabs = useMemo(() => ([
     { id: "sales", label: "Sales & Revenue", icon: TrendingUp },
@@ -312,11 +388,11 @@ export function Reports() {
     <div className="space-y-4">
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <RangePicker range={range} onChange={setRange} />
-      {tab === "sales" && <SalesRevenueTab range={range} />}
-      {tab === "pnl" && <ProfitLossTab range={range} />}
-      {tab === "inventory" && <InventoryTab range={range} />}
-      {tab === "customers" && <CustomerReportTab range={range} />}
-      {tab === "suppliers" && <SupplierReportTab range={range} />}
+      {tab === "sales" && <SalesRevenueTab range={range} canExport={canExport} />}
+      {tab === "pnl" && <ProfitLossTab range={range} canExport={canExport} />}
+      {tab === "inventory" && <InventoryTab range={range} canExport={canExport} />}
+      {tab === "customers" && <CustomerReportTab range={range} canExport={canExport} />}
+      {tab === "suppliers" && <SupplierReportTab range={range} canExport={canExport} />}
     </div>
   );
 }

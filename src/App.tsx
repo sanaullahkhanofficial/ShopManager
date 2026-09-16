@@ -100,7 +100,7 @@ export default function App() {
               {page === "cash" && <CashRegister user={user} />}
               {page === "payments" && <Payments user={user} />}
               {page === "expenses" && <Expenses user={user} />}
-              {page === "reports" && <Reports />}
+              {page === "reports" && <Reports user={user} />}
               {page === "users" && <Users user={user} />}
               {page === "settings" && <SettingsPage value={settings} onSaved={setSettings} user={user} />}
               {page === "backup" && <Backup />}

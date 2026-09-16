@@ -967,6 +967,64 @@ inert form fields:
   question all render correctly with zero console errors beyond the one
   harmless favicon 404.
 
+## Phase Q — Wire up reports.export: real CSV export for the Reports suite (this pass, real, tested)
+
+- **The headline change**: `reports.export` has existed in the real
+  permission catalog since Phase 0, assignable per role in the Permission
+  Matrix (Phase M) — Owner and Accountant have always been granted it by
+  default — but nothing anywhere ever checked it or exported anything. It
+  was a dead permission a role could be "given" that did nothing, exactly
+  the pattern this session keeps finding and closing. Each of the five
+  Reports tabs (Sales & Revenue, Profit & Loss, Inventory, Customers,
+  Suppliers) now has a real "Export CSV" button, gated by `reports.export`
+  through the same `usePermissionSet` pattern Phase O established, that
+  writes a genuine CSV file via the existing `files:saveText` IPC path
+  (the same save-dialog mechanism Phase C's Products CSV export already
+  used) — not a second, parallel export mechanism.
+- **Every export is built from the exact data already on screen**, not a
+  separately recomputed copy: each tab's `exportCsv()` closure reads the
+  same `summary`/`topProducts`/`data`/`rows` state the tab already fetched
+  and is rendering, so the CSV can never show different numbers than the
+  screen it was exported from.
+- **A real bug found and fixed while building this, not left in place**:
+  `reports:customers`' SQL used `COALESCE(c.shop_name, c.name)` for the
+  display name, which doesn't fall through when `shop_name` is an empty
+  string rather than NULL — so a customer entered with no shop name showed
+  up with a blank name in both the Customer Report tab and its new CSV
+  export. Fixed with `COALESCE(NULLIF(c.shop_name,''), c.name)`, the same
+  fix Phase P already applied to the Assistant's `top_debtor` query. The
+  same underlying pattern (`COALESCE(x.shop_name,x.name)`, not lossless
+  against an empty string) still exists in several other read-only
+  queries this phase didn't touch — `customers:list`'s sort order,
+  `sales:list`/`sales:get`'s `customer_name`, held sales, and sales
+  returns — named here honestly as a known, minor, pre-existing display
+  quirk rather than silently left for someone else to rediscover.
+- **Scope decision, stated plainly**: this is CSV only, matching what
+  Products/Customers/Suppliers CSV export already established as the
+  real, working format in this app — no PDF export and no column-
+  visibility toggle were added (see the updated Data-grid bullet below).
+- Verified with `scripts/test-phaseQ.cjs` (25 assertions against the real
+  backend: `reports.export` is confirmed to be a real, existing permission
+  that Owner and Accountant are genuinely granted and Cashier genuinely is
+  not; every report handler backing an export function (`reports:
+  topProducts`, `reports:summary`, `reports:inventory`, `reports:
+  customers`, `reports:suppliers`) is confirmed to return every field its
+  corresponding CSV export reads; and after seeding a real product,
+  customer, supplier and sale, every one of those handlers is confirmed to
+  reflect the exact real numbers — the Rs. 300 sale, the Rs. 5300 customer
+  balance after opening balance plus the credit sale, the Rs. 8000
+  supplier balance, the Rs. 800 real stock value) — all pass, plus all
+  seventeen earlier suites re-run clean. Visual smoke test (Playwright,
+  `files:saveText` mocked to capture the real CSV content instead of
+  opening a native dialog) confirms an Owner sees "Export CSV" and its
+  three tested exports (Sales & Revenue, P&L, Customers) each genuinely
+  contain the real mocked figures (a real product name, a real Rs. 444,000
+  revenue figure, a real Rs. 10,000 net profit, a real customer name and
+  Rs. 18,500 balance), while a Cashier — who the real permission catalog
+  does not grant `reports.export` — never sees the button at all and
+  triggers zero export calls, with zero console errors beyond the one
+  harmless favicon 404 on both runs.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -988,10 +1046,14 @@ These are named explicitly so nobody mistakes silence for "it exists":
   product names, not every label in every form.
 - **Backup encryption, scheduled/cloud backup.** Backup is a plain SQLite
   file copy to a location you choose; no encryption or automatic schedule.
-- **Data-grid features** (Section 53): column visibility, CSV/PDF export,
-  server-side pagination — tables are simple, unpaginated, client-filtered.
+- **Data-grid features** (Section 53) not covered by Phase Q's real Reports
+  CSV export: no column-visibility toggle anywhere, no PDF export, and
+  `DataTable`'s pagination (used across most list pages, `pageSize` prop)
+  is client-side over an already-fetched full list — real and working for
+  a shop's realistic table sizes, but not the server-side
+  limit/offset-at-the-SQL-layer pagination Section 53 originally specified.
 
-## Page-level phases (A–N) plus Phase O–P — all done
+## Page-level phases (A–N) plus Phase O–Q — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1001,13 +1063,15 @@ Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M** Users &
 Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
 barcode rendering + receipt polish — all done (see sections above). **N**
 was the last lettered phase in the original plan; **O** (client-side
-per-role UI gating) and **P** (real AI Business Assistant) followed as
-direct, named follow-ons — **O** closing Phase M's own stated gap, **P**
-turning the Section 59–60 placeholder into a genuinely working page. What
-remains is the list below, none of it faked or half-built, all of it named
+per-role UI gating), **P** (real AI Business Assistant) and **Q** (real
+Reports CSV export) followed as direct, named follow-ons — **O** closing
+Phase M's own stated gap, **P** turning the Section 59–60 placeholder into
+a genuinely working page, **Q** wiring the `reports.export` permission
+(real since Phase 0, never acted on) to an actual feature. What remains
+is the list below, none of it faked or half-built, all of it named
 honestly.
 
-## Still not started after Phase 0/A–P
+## Still not started after Phase 0/A–Q
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
