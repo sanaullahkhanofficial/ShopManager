@@ -16,6 +16,7 @@ import { Switch } from "../components/ui/Switch";
 import { Barcode } from "../components/ui/Barcode";
 import { PrintableList } from "../components/PrintableList";
 import { useToast } from "../components/ui/Toast";
+import { useLang } from "../lib/i18n";
 import type { AuthUser, Category, Product, Settings } from "../types";
 import type { PageId } from "../components/layout/Sidebar";
 
@@ -23,6 +24,7 @@ const emptyDraft = (): Partial<Product> => ({ package_unit: "KG", status: "activ
 
 export function Products({ user, settings, onNavigate }: { user: AuthUser; settings: Settings; onNavigate?: (p: PageId) => void }) {
   const { push } = useToast();
+  const { t, lang } = useLang();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [query, setQuery] = useState("");
@@ -133,28 +135,28 @@ export function Products({ user, settings, onNavigate }: { user: AuthUser; setti
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Total Products" value={String(products.length)} hint="Active Products" icon={<Package size={18} />} tone="green" />
-        <StatCard label="Total Stock" value={totalStock.toLocaleString()} hint="Units across products" icon={<Boxes size={18} />} />
-        <StatCard label="Low Stock Items" value={String(lowStockCount)} hint="Need Attention" icon={<AlertTriangle size={18} />} tone={lowStockCount ? "danger" : "default"} />
-        <StatCard label="Categories" value={String(categories.length)} icon={<Tags size={18} />} tone="gold" />
+        <StatCard label={t("totalProducts")} value={String(products.length)} hint={t("activeProductsHint")} icon={<Package size={18} />} tone="green" />
+        <StatCard label={t("totalStock")} value={totalStock.toLocaleString()} hint={t("unitsAcrossProducts")} icon={<Boxes size={18} />} />
+        <StatCard label={t("lowStockItems")} value={String(lowStockCount)} hint={t("needAttention")} icon={<AlertTriangle size={18} />} tone={lowStockCount ? "danger" : "default"} />
+        <StatCard label={t("categories")} value={String(categories.length)} icon={<Tags size={18} />} tone="gold" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input className="input pl-9" placeholder="Search by name, code or barcode…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input pl-9" placeholder={t("searchByNameCodeBarcode")} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <select className="input w-auto" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-          <option value="">All Categories</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          <option value="">{t("allCategories")}</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{lang === "ur" ? (c.name_urdu || c.name) : c.name}</option>)}
         </select>
-        <Button onClick={() => { setQuery(""); setCategoryFilter(""); setLowStockOnly(false); }}><RotateCcw size={14} /> Reset</Button>
+        <Button onClick={() => { setQuery(""); setCategoryFilter(""); setLowStockOnly(false); }}><RotateCcw size={14} /> {t("resetBtn")}</Button>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button onClick={() => setManageCategories(true)}><Tags size={14} /> Categories</Button>
-          <Button onClick={importCsv}><Upload size={14} /> Import (CSV)</Button>
-          <Button onClick={exportCsv}><Download size={14} /> Export</Button>
-          <Button onClick={() => setPrintList(true)}><Printer size={14} /> Print List</Button>
-          <Button variant="primary" onClick={resetForm}><Plus size={15} /> Add New Product</Button>
+          <Button onClick={() => setManageCategories(true)}><Tags size={14} /> {t("categories")}</Button>
+          <Button onClick={importCsv}><Upload size={14} /> {t("importCsvBtn")}</Button>
+          <Button onClick={exportCsv}><Download size={14} /> {t("exportBtn")}</Button>
+          <Button onClick={() => setPrintList(true)}><Printer size={14} /> {t("printListBtn")}</Button>
+          <Button variant="primary" onClick={resetForm}><Plus size={15} /> {t("addNewProduct")}</Button>
         </div>
       </div>
 
@@ -166,20 +168,20 @@ export function Products({ user, settings, onNavigate }: { user: AuthUser; setti
             pageSize={20}
             storageKey="products-list"
             columns={[
-              { key: "name", header: "Product Name", render: (r) => r.name },
+              { key: "name", header: t("productNameCol"), render: (r) => r.name },
               { key: "name_urdu", header: "نام (Urdu)", render: (r) => <span dir="rtl">{r.name_urdu}</span> },
-              { key: "category", header: "Category", render: (r) => <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">{r.category_name}</span> },
-              { key: "unit", header: "Unit", render: (r) => `${r.package_size} ${r.package_unit}` },
-              { key: "stock", header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
-              { key: "purchase", header: "Purchase", render: (r) => money(r.purchase_price) },
-              { key: "sale", header: "Sale", render: (r) => money(r.retail_price) },
-              { key: "status", header: "Status", render: (r) => r.stock <= r.min_stock
-                ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Low Stock</span>
-                : <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">Active</span> },
-              { header: "Action", render: (r) => (
+              { key: "category", header: t("categoryCol"), render: (r) => <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">{lang === "ur" ? (r.category_name_urdu || r.category_name) : r.category_name}</span> },
+              { key: "unit", header: t("unitCol"), render: (r) => `${r.package_size} ${r.package_unit}` },
+              { key: "stock", header: t("stockCol"), render: (r) => `${r.stock} ${r.package_unit}` },
+              { key: "purchase", header: t("purchaseCol"), render: (r) => money(r.purchase_price) },
+              { key: "sale", header: t("saleCol"), render: (r) => money(r.retail_price) },
+              { key: "status", header: t("statusCol"), render: (r) => r.stock <= r.min_stock
+                ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{t("lowStock")}</span>
+                : <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">{t("activeStatus")}</span> },
+              { header: t("actionCol"), render: (r) => (
                 <div className="flex gap-2">
-                  <button className="text-stone-400 hover:text-brand-green-700" title="Edit" onClick={() => editRow(r)}><SlidersHorizontal size={14} /></button>
-                  <button className="text-stone-400 hover:text-red-600" title="Deactivate" onClick={() => deactivate(r)}><Trash2 size={14} /></button>
+                  <button className="text-stone-400 hover:text-brand-green-700" title={t("editTooltip")} onClick={() => editRow(r)}><SlidersHorizontal size={14} /></button>
+                  <button className="text-stone-400 hover:text-red-600" title={t("deactivateTooltip")} onClick={() => deactivate(r)}><Trash2 size={14} /></button>
                 </div>
               ) },
             ]}
@@ -187,75 +189,74 @@ export function Products({ user, settings, onNavigate }: { user: AuthUser; setti
         </div>
 
         <div className="card space-y-3">
-          <h3 className="text-sm font-semibold text-brand-navy-900">{draft.id ? "Edit Product" : "Add / Edit Product"}</h3>
+          <h3 className="text-sm font-semibold text-brand-navy-900">{draft.id ? t("editProductTitle") : t("addEditProductTitle")}</h3>
           <Tabs
-            tabs={[{ id: "details", label: "Product Details", icon: Tags }, { id: "pricing", label: "Pricing & Stock", icon: DollarSign }]}
+            tabs={[{ id: "details", label: t("productDetailsTab"), icon: Tags }, { id: "pricing", label: t("pricingStockTab"), icon: DollarSign }]}
             active={formTab} onChange={setFormTab}
           />
 
           {formTab === "details" && (
             <div className="space-y-3">
-              <Field label="Product Name (English) *" value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-              <Field label="Product Name (Urdu)" dir="rtl" value={draft.name_urdu || ""} onChange={(e) => setDraft({ ...draft, name_urdu: e.target.value })} placeholder="مثال: سونا یوریا" />
-              <SelectField label="Category *" value={draft.category_id || ""} onChange={(e) => setDraft({ ...draft, category_id: Number(e.target.value) })}>
-                <option value="">Select Category</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <Field label={t("productNameEnglish")} value={draft.name || ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+              <Field label={t("productNameUrdu")} dir="rtl" value={draft.name_urdu || ""} onChange={(e) => setDraft({ ...draft, name_urdu: e.target.value })} placeholder="مثال: سونا یوریا" />
+              <SelectField label={t("categoryRequired")} value={draft.category_id || ""} onChange={(e) => setDraft({ ...draft, category_id: Number(e.target.value) })}>
+                <option value="">{t("selectCategory")}</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{lang === "ur" ? (c.name_urdu || c.name) : c.name}</option>)}
               </SelectField>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Package Size" type="number" value={draft.package_size ?? 0} onChange={(e) => setDraft({ ...draft, package_size: Number(e.target.value) })} />
-                <SelectField label="Unit" value={draft.package_unit || "KG"} onChange={(e) => setDraft({ ...draft, package_unit: e.target.value })}>
+                <Field label={t("packageSize")} type="number" value={draft.package_size ?? 0} onChange={(e) => setDraft({ ...draft, package_size: Number(e.target.value) })} />
+                <SelectField label={t("unitCol")} value={draft.package_unit || "KG"} onChange={(e) => setDraft({ ...draft, package_unit: e.target.value })}>
                   {["KG", "Bag", "L", "Piece", "Ton"].map((u) => <option key={u}>{u}</option>)}
                 </SelectField>
               </div>
               <div className="flex items-end gap-2">
-                <div className="flex-1"><Field label="Barcode (optional)" value={draft.barcode || ""} onChange={(e) => setDraft({ ...draft, barcode: e.target.value })} /></div>
+                <div className="flex-1"><Field label={t("barcodeOptional")} value={draft.barcode || ""} onChange={(e) => setDraft({ ...draft, barcode: e.target.value })} /></div>
                 <Button onClick={() => setDraft((d) => ({ ...d, barcode: d.sku || `PRD${String(d.id ?? "").padStart(6, "0")}` }))}><BarcodeIcon size={14} /></Button>
               </div>
-              <TextAreaField label="Description (optional)" value={draft.brand || ""} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} />
+              <TextAreaField label={t("descriptionOptional")} value={draft.brand || ""} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} />
               <div>
-                <span className="label">Product Image</span>
+                <span className="label">{t("productImage")}</span>
                 <div className="flex items-center gap-2">
                   <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-50">
                     {draft.image_path ? <img src={`file://${draft.image_path}`} className="h-full w-full object-cover" /> : <Package size={16} className="text-stone-300" />}
                   </div>
-                  <Button onClick={pickLogo}>Upload Image</Button>
+                  <Button onClick={pickLogo}>{t("uploadImage")}</Button>
                 </div>
               </div>
               {draft.id && (
-                <Switch checked={(draft.status || "active") === "active"} onChange={(v) => setDraft({ ...draft, status: v ? "active" : "inactive" })} label="Active Product" />
+                <Switch checked={(draft.status || "active") === "active"} onChange={(v) => setDraft({ ...draft, status: v ? "active" : "inactive" })} label={t("activeProductSwitch")} />
               )}
             </div>
           )}
 
           {formTab === "pricing" && (
             <div className="space-y-3">
-              <Field label="Purchase / Cost Price" type="number" value={draft.purchase_price ?? 0} onChange={(e) => setDraft({ ...draft, purchase_price: Number(e.target.value) })} />
-              <Field label="Retail Price" type="number" value={draft.retail_price ?? 0} onChange={(e) => setDraft({ ...draft, retail_price: Number(e.target.value) })} />
-              <Field label="Wholesale Price" type="number" value={draft.wholesale_price ?? 0} onChange={(e) => setDraft({ ...draft, wholesale_price: Number(e.target.value) })} />
-              <Field label="Minimum / Reorder Stock" type="number" value={draft.min_stock ?? 0} onChange={(e) => setDraft({ ...draft, min_stock: Number(e.target.value) })} />
+              <Field label={t("purchaseCostPrice")} type="number" value={draft.purchase_price ?? 0} onChange={(e) => setDraft({ ...draft, purchase_price: Number(e.target.value) })} />
+              <Field label={t("retailPriceLabel")} type="number" value={draft.retail_price ?? 0} onChange={(e) => setDraft({ ...draft, retail_price: Number(e.target.value) })} />
+              <Field label={t("wholesalePriceLabel")} type="number" value={draft.wholesale_price ?? 0} onChange={(e) => setDraft({ ...draft, wholesale_price: Number(e.target.value) })} />
+              <Field label={t("minimumReorderStock")} type="number" value={draft.min_stock ?? 0} onChange={(e) => setDraft({ ...draft, min_stock: Number(e.target.value) })} />
               {!draft.id ? (
-                <Field label="Opening Stock" type="number" value={(draft as { stock?: number }).stock ?? 0} onChange={(e) => setDraft({ ...draft, stock: Number(e.target.value) } as Partial<Product>)} />
+                <Field label={t("openingStock")} type="number" value={(draft as { stock?: number }).stock ?? 0} onChange={(e) => setDraft({ ...draft, stock: Number(e.target.value) } as Partial<Product>)} />
               ) : (
                 <p className="rounded-md bg-stone-50 p-2 text-xs text-stone-500">
-                  Current stock: <strong>{draft.stock} {draft.package_unit}</strong>. Use Stock Adjustment or Stock Transfer to change it —
-                  editing here won't touch quantities.
+                  {t("currentStockPrefix")} <strong>{draft.stock} {draft.package_unit}</strong>. {t("stockAdjustHint")}
                 </p>
               )}
             </div>
           )}
 
           <div className="flex gap-2 pt-1">
-            <Button onClick={resetForm}><RotateCcw size={14} /> Reset</Button>
-            <Button variant="primary" className="flex-1" onClick={save}><Save size={14} /> Save Product</Button>
+            <Button onClick={resetForm}><RotateCcw size={14} /> {t("resetBtn")}</Button>
+            <Button variant="primary" className="flex-1" onClick={save}><Save size={14} /> {t("saveProduct")}</Button>
           </div>
 
           <div className="border-t border-stone-100 pt-3">
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Quick Actions</h4>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">{t("quickActions")}</h4>
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => onNavigate?.("stockAdjustment")}><SlidersHorizontal size={14} /> Stock Adjustment</Button>
-              <Button onClick={() => setBulkPrices(true)}><DollarSign size={14} /> Update Prices</Button>
-              <Button onClick={generateBarcodes}><BarcodeIcon size={14} /> Generate Barcodes</Button>
-              <Button onClick={() => setLowStockOnly((v) => !v)}><ListFilter size={14} /> {lowStockOnly ? "Show All" : "Low Stock Report"}</Button>
+              <Button onClick={() => onNavigate?.("stockAdjustment")}><SlidersHorizontal size={14} /> {t("stockAdjustment")}</Button>
+              <Button onClick={() => setBulkPrices(true)}><DollarSign size={14} /> {t("updatePrices")}</Button>
+              <Button onClick={generateBarcodes}><BarcodeIcon size={14} /> {t("generateBarcodesBtn")}</Button>
+              <Button onClick={() => setLowStockOnly((v) => !v)}><ListFilter size={14} /> {lowStockOnly ? t("showAll") : t("lowStockReport")}</Button>
             </div>
           </div>
         </div>
@@ -266,18 +267,18 @@ export function Products({ user, settings, onNavigate }: { user: AuthUser; setti
       {barcodeSheet && <BarcodeSheetModal products={products} onClose={() => setBarcodeSheet(false)} />}
       {printList && (
         <PrintableList
-          title="Product List"
+          title={t("productListTitle")}
           settings={settings}
           rows={rows}
           keyField={(r) => r.id}
           columns={[
-            { header: "Product", render: (r) => r.name },
-            { header: "Category", render: (r) => r.category_name || "" },
-            { header: "Unit", render: (r) => `${r.package_size} ${r.package_unit}` },
-            { header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
-            { header: "Purchase", render: (r) => money(r.purchase_price) },
-            { header: "Retail", render: (r) => money(r.retail_price) },
-            { header: "Wholesale", render: (r) => money(r.wholesale_price) },
+            { header: t("productNameCol"), render: (r) => r.name },
+            { header: t("categoryCol"), render: (r) => (lang === "ur" ? (r.category_name_urdu || r.category_name) : r.category_name) || "" },
+            { header: t("unitCol"), render: (r) => `${r.package_size} ${r.package_unit}` },
+            { header: t("stockCol"), render: (r) => `${r.stock} ${r.package_unit}` },
+            { header: t("purchaseCol"), render: (r) => money(r.purchase_price) },
+            { header: t("retail"), render: (r) => money(r.retail_price) },
+            { header: t("wholesale"), render: (r) => money(r.wholesale_price) },
           ]}
         />
       )}
@@ -287,6 +288,7 @@ export function Products({ user, settings, onNavigate }: { user: AuthUser; setti
 
 function CategoriesModal({ categories, onClose, onChanged }: { categories: Category[]; onClose: () => void; onChanged: () => void }) {
   const { push } = useToast();
+  const { t } = useLang();
   const [name, setName] = useState("");
   const [nameUrdu, setNameUrdu] = useState("");
 
@@ -299,7 +301,7 @@ function CategoriesModal({ categories, onClose, onChanged }: { categories: Categ
   }
 
   return (
-    <Modal title="Categories" onClose={onClose}>
+    <Modal title={t("categories")} onClose={onClose}>
       <div className="mb-4 space-y-1">
         {categories.map((c) => (
           <div key={c.id} className="flex justify-between rounded-md border border-stone-100 px-3 py-1.5 text-sm">
@@ -308,16 +310,17 @@ function CategoriesModal({ categories, onClose, onChanged }: { categories: Categ
         ))}
       </div>
       <div className="flex gap-2">
-        <Field label="Category (English)" value={name} onChange={(e) => setName(e.target.value)} />
-        <Field label="Category (Urdu)" dir="rtl" value={nameUrdu} onChange={(e) => setNameUrdu(e.target.value)} />
+        <Field label={t("categoryEnglish")} value={name} onChange={(e) => setName(e.target.value)} />
+        <Field label={t("categoryUrdu")} dir="rtl" value={nameUrdu} onChange={(e) => setNameUrdu(e.target.value)} />
       </div>
-      <div className="mt-3 flex justify-end"><Button variant="primary" onClick={add} disabled={!name}>Add Category</Button></div>
+      <div className="mt-3 flex justify-end"><Button variant="primary" onClick={add} disabled={!name}>{t("addCategory")}</Button></div>
     </Modal>
   );
 }
 
 function BulkPricesModal({ products, onClose, onSaved, actorId }: { products: Product[]; onClose: () => void; onSaved: () => void; actorId: number }) {
   const { push } = useToast();
+  const { t } = useLang();
   const [edits, setEdits] = useState<Record<number, { retail_price: number; wholesale_price: number }>>({});
 
   function set(id: number, field: "retail_price" | "wholesale_price", value: number, base: Product) {
@@ -334,37 +337,38 @@ function BulkPricesModal({ products, onClose, onSaved, actorId }: { products: Pr
   }
 
   return (
-    <Modal title="Update Prices" onClose={onClose} wide>
+    <Modal title={t("updatePrices")} onClose={onClose} wide>
       <div className="max-h-[60vh] overflow-y-auto">
         <DataTable
           keyField={(r) => r.id}
           rows={products}
           columns={[
-            { header: "Product", render: (r) => r.name },
-            { header: "Retail Price", render: (r) => (
+            { header: t("productNameCol"), render: (r) => r.name },
+            { header: t("retailPriceLabel"), render: (r) => (
               <input type="number" className="input" defaultValue={r.retail_price} onChange={(e) => set(r.id, "retail_price", Number(e.target.value), r)} />
             ) },
-            { header: "Wholesale Price", render: (r) => (
+            { header: t("wholesalePriceLabel"), render: (r) => (
               <input type="number" className="input" defaultValue={r.wholesale_price} onChange={(e) => set(r.id, "wholesale_price", Number(e.target.value), r)} />
             ) },
           ]}
         />
       </div>
       <div className="mt-4 flex justify-end gap-2">
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={saveAll}>Save Changes</Button>
+        <Button onClick={onClose}>{t("cancelBtn")}</Button>
+        <Button variant="primary" onClick={saveAll}>{t("saveChangesBtn")}</Button>
       </div>
     </Modal>
   );
 }
 
 function BarcodeSheetModal({ products, onClose }: { products: Product[]; onClose: () => void }) {
-  useEffect(() => { const t = setTimeout(() => window.print(), 200); return () => clearTimeout(t); }, []);
+  const { t } = useLang();
+  useEffect(() => { const timer = setTimeout(() => window.print(), 200); return () => clearTimeout(timer); }, []);
   const withBarcode = products.filter((p) => p.barcode);
   return (
     <>
-      <Modal title="Barcode Labels" onClose={onClose} wide>
-        <p className="mb-3 text-sm text-stone-500">{withBarcode.length} labels ready — the print dialog should open automatically.</p>
+      <Modal title={t("barcodeLabelsTitle")} onClose={onClose} wide>
+        <p className="mb-3 text-sm text-stone-500">{withBarcode.length} {t("labelsReadyHint")}</p>
         <div className="grid max-h-[60vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
           {withBarcode.map((p) => (
             <div key={p.id} className="rounded-md border border-stone-200 p-2 text-center">

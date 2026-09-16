@@ -696,6 +696,40 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase X checks (this session)
+- No new `scripts/test-phaseX.cjs`: this phase touched two frontend files
+  (`i18n.tsx`, `Products.tsx`) and no backend code. Verified via
+  `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- **A real bug caught before it was ever run, by re-reading the diff, not
+  by a test**: the first pass at the toolbar's Reset button wrote
+  `{t("clear") === "صاف کریں" ? t("clear") : "Reset"}` — a
+  string-comparison hack standing in for a real dictionary key, the exact
+  same category of mistake Phase W's own verification entry above
+  documents fixing one phase earlier. It happens to produce the correct
+  label in both languages (the comparison is trivially true in Urdu mode
+  and trivially false in English mode), but is fragile, unreadable, and
+  would silently mislabel the button the moment `clear`'s Urdu wording
+  ever changed for the POS screen it was originally written for. Caught
+  before the smoke test was even written; replaced with a real `resetBtn`
+  dictionary key.
+- Visual smoke test (Playwright, two realistic mocked products — "Sona
+  Urea" in category Fertilizer/کھاد, "Fauji Atta" in category Flour/آٹا —
+  English then Urdu): confirms the four stat cards, the search/filter
+  toolbar (including the fixed Reset button), the DataTable's column
+  headers and its per-row Low Stock/Active status badges, both tabs of
+  the Add/Edit Product form, the Quick Actions panel's four buttons, and
+  the Bulk Update Prices modal (reached by clicking the Urdu-rendered
+  "قیمتیں اپ ڈیٹ کریں" button, confirming its own column headers and
+  Save/Cancel buttons render real Urdu) all render correctly in both
+  languages. Confirms both real product names stay untranslated in Urdu
+  mode. Confirms the Category column and the category filter/form
+  dropdown render the real `category_name_urdu` value the backend has
+  joined in since Phase 0 ("کھاد" for Fertilizer, "آٹا" for Flour) — not
+  a dictionary placeholder. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

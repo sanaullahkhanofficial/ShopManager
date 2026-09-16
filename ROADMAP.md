@@ -1292,6 +1292,46 @@ inert form fields:
   "Petty Cash" options) and the reason placeholder all render real Urdu.
   Zero console errors beyond the one harmless favicon 404.
 
+## Phase X — Extend Urdu localization to Products (this pass, real, tested)
+
+- **The headline change**: the Products page — the catalog screen every
+  other page (POS, Purchases, Reports) depends on for its product list —
+  is now genuinely bilingual: the stat cards, search/filter toolbar, the
+  full DataTable (columns and the Low Stock/Active status badges), the
+  entire Add/Edit Product form (both the Product Details and Pricing &
+  Stock tabs), the Quick Actions panel, and all three supporting modals
+  (Categories, Bulk Update Prices, Barcode Labels) all render real Urdu.
+  ~42 new dictionary keys were added, reusing existing ones (`categories`,
+  `lowStock`, `productCol`→`categoryCol`, `cancelBtn`) wherever a prior
+  phase's key already meant the same thing.
+- **Real data values translated, not just labels**: a product's category
+  name renders through the real `category_name_urdu` field the backend
+  already joins in (`products:list`'s `LEFT JOIN categories ... c.name_urdu
+  category_name_urdu`, unchanged since Phase 0) — not a dictionary lookup —
+  exactly like the Category dropdown in the form and the category filter
+  already did in earlier phases, while real product names typed in English
+  ("Sona Urea", "Fauji Atta" in the smoke test) correctly stay
+  untranslated in both languages.
+- **A real bug caught and fixed before it was ever run, not after**: the
+  first pass at the toolbar's Reset button wrote
+  `t("clear") === "صاف کریں" ? t("clear") : "Reset"` — the exact same
+  class of mistake Phase W's ROADMAP entry named and fixed one phase
+  earlier (a string-comparison hack standing in for a real dictionary
+  key). It "worked" by accident in both languages, but was unreadable and
+  fragile. Caught by re-reading the diff before running anything, not by
+  a test; replaced with a proper `resetBtn` key and `{t("resetBtn")}`.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend file,
+  as expected for a pure frontend localization pass). Visual smoke test
+  (Playwright, two real products across two categories, English then
+  Urdu): confirms the stat cards, toolbar, DataTable headers and status
+  badges, the Add/Edit form's both tabs, the Quick Actions buttons, and
+  the Bulk Prices modal (opened from the Urdu-rendered "قیمتیں اپ ڈیٹ
+  کریں" button) all render real Urdu strings; confirms both real product
+  names stay untranslated in both languages; confirms the Fertilizer
+  category genuinely renders as "کھاد" (not a placeholder) via the real
+  `category_name_urdu` field. Zero console errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1311,12 +1351,12 @@ These are named explicitly so nobody mistakes silence for "it exists":
   integration for the desktop build does not exist. (Phase S's "Print
   Report"/PDF export uses this same browser print path deliberately —
   it's the real, working fallback, not a placeholder.)
-- **Full UI localization.** POS (Phase T), Dashboard (Phase V) and Cash
-  Management (Phase W) are now genuinely bilingual; every other page
-  (Products, Customers, Suppliers, Expenses, Reports, Settings, Users, …)
-  still renders RTL-mirrored but largely in English. The same
+- **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
+  Management (Phase W) and Products (Phase X) are now genuinely bilingual;
+  every other page (Customers, Suppliers, Expenses, Reports, Settings,
+  Users, …) still renders RTL-mirrored but largely in English. The same
   dictionary/`t()`/`paymentMethodLabel()` pattern is proven and repeatable
-  across three pages now — extending it further is real, bounded work for
+  across four pages now — extending it further is real, bounded work for
   future phases, not a different kind of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
@@ -1329,7 +1369,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–W — all done
+## Page-level phases (A–N) plus Phase O–X — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1344,13 +1384,14 @@ Reports CSV export), **R** (real backup encryption + restore), **S**
 (data-grid column visibility + real Print/PDF export), **T** (real,
 reachable Urdu localization for POS), **U** (fixed the real Sidebar RTL
 bug Phase T found), **V** (extended real Urdu localization to the
-Dashboard) and **W** (extended it again to Cash Management) followed as
-direct, named follow-ons — **O** closing Phase M's own stated gap, **P**
-turning the Section 59–60 placeholder into a genuinely working page, **Q**
-wiring the `reports.export` permission (real since Phase 0, never acted
-on) to an actual feature, **R** turning "Backup Now" from a one-way copy
-into an actual, restorable, optionally-encrypted disaster-recovery path,
-**S** closing out Section 53's two remaining real gaps, **T** making the
+Dashboard), **W** (extended it again to Cash Management) and **X**
+(extended it a fourth time to Products) followed as direct, named
+follow-ons — **O** closing Phase M's own stated gap, **P** turning the
+Section 59–60 placeholder into a genuinely working page, **Q** wiring the
+`reports.export` permission (real since Phase 0, never acted on) to an
+actual feature, **R** turning "Backup Now" from a one-way copy into an
+actual, restorable, optionally-encrypted disaster-recovery path, **S**
+closing out Section 53's two remaining real gaps, **T** making the
 already-built RTL/i18n system reachable for the first time and genuinely
 bilingual on the highest-traffic screen, **U** correctly diagnosing and
 fixing the RTL text-truncation bug Phase T's screenshot first exposed,
@@ -1358,10 +1399,13 @@ fixing the RTL text-truncation bug Phase T's screenshot first exposed,
 and unifying the payment-method-label mapping both pages now genuinely
 share, **W** extending it a third time to the daily cash-discipline
 workflow and catching a real silent-failure translation bug before it
-shipped. What remains is the list below, none of it faked or half-built,
-all of it named honestly.
+shipped, and **X** extending it a fourth time to the product catalog
+every other page depends on, catching (and this time preventing before it
+ever ran) the same class of string-hack bug Phase W had just named. What
+remains is the list below, none of it faked or half-built, all of it
+named honestly.
 
-## Still not started after Phase 0/A–W
+## Still not started after Phase 0/A–X
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
