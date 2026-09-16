@@ -845,6 +845,71 @@ inert form fields:
   resulting receipt all update correctly with zero console errors (the one
   console message across the whole run was a harmless favicon 404).
 
+## Phase O — Client-side per-role UI gating (this pass, real, tested)
+
+- **The headline change**: since Phase M, `requirePermission()` genuinely
+  blocked a denied write at the IPC boundary, but the UI never reflected
+  it in advance — a Cashier's sidebar still listed Reports, Settings,
+  Users & Permissions, Purchases, and every other module, and the
+  Dashboard's Quick Actions still offered "Add Supplier" to a role with no
+  `suppliers.create`. Both now genuinely hide what the backend would
+  reject, driven by the exact same `role_permissions` data the backend
+  checks (fetched once per login via a new `permissions:forRole` handler
+  and IPC wrapper) — not a second, hand-maintained copy of who-can-do-what
+  that could drift from the real rules.
+- **`src/lib/permissions.ts`** is the one new piece: `usePermissionSet(role)`
+  fetches the role's real allowed-permission set, and a `PAGE_PERMISSIONS`
+  map ties each sidebar page to the actual permission(s) that gate it —
+  `products` → `inventory.view`, `users` → `users.manage`, `payments` →
+  `customers.payment` OR `suppliers.payment`, and so on. A page with no
+  entry (Backup, AI Assistant) is deliberately left visible to every role,
+  because neither one is gated by any permission server-side either —
+  client-side gating never invents a restriction the backend doesn't also
+  enforce, matching the honesty standard every earlier phase held to.
+- **Sidebar** filters both flat nav items and group children against this
+  set, dropping a whole group (e.g. "Suppliers") if none of its children
+  are reachable, rather than leaving an empty expandable stub.
+- **App.tsx route guard**: if the signed-in role can't reach the page
+  currently selected — a stale quick-action, a permission revoked
+  mid-session — it falls back to Dashboard, or renders a plain "Access
+  restricted" panel if even Dashboard itself is blocked, instead of
+  mounting a page whose actions would all fail against the backend anyway.
+- **Dashboard Quick Actions got the more precise fix, not the lazy one.**
+  A first pass reused each target page's nav-level permission (e.g. gating
+  "Add Customer" on `customers.view`), which would have shown the button
+  to a Viewer who can see customers but not create one — a button that
+  always fails is exactly what this phase exists to remove. Caught before
+  shipping: each quick action now checks its own real creation permission
+  (`customers.create`, `suppliers.create`, `expenses.create`, etc.), and
+  the whole Quick Actions card disappears rather than rendering empty when
+  a role (e.g. Viewer) has none of them.
+- **Scope decision, stated plainly**: this reads the role's permission set
+  once per login/role change, matching how every other phase's settings
+  and matrix data already load — it is not a live subscription, so a
+  permission revoked through the Permission Matrix while that role's user
+  is already signed in won't re-hide their sidebar until their next login.
+  The backend enforcement itself has no such lag: `requirePermission()`
+  reads `role_permissions` fresh on every call, so the actual write is
+  blocked immediately regardless of what the sidebar still shows.
+- Verified with `scripts/test-phaseO.cjs` (8 assertions against the real
+  backend, not a mock: every permission `PAGE_PERMISSIONS` relies on is a
+  genuine entry in the backend's own permission catalog; a Cashier's real
+  `permissions:forRole` data grants exactly Dashboard/POS/Cash/Customers
+  and correctly excludes Products/Reports/Settings/Users/Purchases; a
+  Viewer's real data grants read access to Products/Reports/Customers/
+  Suppliers/Cash but excludes POS/Purchases/Expenses/Settings; an Owner's
+  data grants every gated page; and granting `reports.view` to Cashier
+  through the real `permissions:update` matrix-editor path shows up in
+  `permissions:forRole` immediately) — all pass, plus all fifteen earlier
+  suites re-run clean. Visual smoke test (Playwright, logging in as both
+  an Owner and a Cashier against a mock carrying each role's real granted
+  permissions) confirms the Owner's sidebar lists all 17 real nav entries
+  while the Cashier's lists exactly the 6 their permissions allow
+  (Dashboard, POS, Customers, Cash Management, plus the two ungated
+  Backup/AI Assistant pages), and the Cashier's Dashboard Quick Actions
+  panel shows only "New Sale (POS)" instead of all six — zero console
+  errors beyond the one harmless favicon 404 on both runs.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -862,12 +927,6 @@ These are named explicitly so nobody mistakes silence for "it exists":
   the browser print dialog (`window.print()`), which is the documented
   fallback for the web/PWA path (Section 76); real USB ESC/POS device
   integration for the desktop build does not exist.
-- **Client-side, per-role UI gating** (Section 39). Phase M added real
-  server-side enforcement on every money-moving/administrative IPC channel
-  plus the matrix editor UI, but nav items and in-page buttons still
-  render the same for every role — a denied action fails loudly at the
-  backend rather than being hidden from the menu in advance. Hiding
-  sidebar/button-level access per role is a follow-on polish pass.
 - **AI Business Assistant** (Sections 59–60) — no page, no query layer.
 - **Full UI localization.** The Urdu toggle covers navigation/chrome and
   product names, not every label in every form.
@@ -876,7 +935,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
 - **Data-grid features** (Section 53): column visibility, CSV/PDF export,
   server-side pagination — tables are simple, unpaginated, client-filtered.
 
-## Page-level phases (A–N) — all done
+## Page-level phases (A–N) plus Phase O — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -884,9 +943,11 @@ Customers v2 + Ledger → **E** Suppliers v2 + Ledger + PO UI → **F** POS v2
 → **G** Purchases v2 → **H** Returns v2 → **I** Cash Management v2 → **J**
 Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M** Users &
 Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
-barcode rendering + receipt polish — all done (see sections above). This
-was the last lettered phase in the original plan; what remains is the
-list below, none of it faked or half-built, all of it named honestly.
+barcode rendering + receipt polish — all done (see sections above). **N**
+was the last lettered phase in the original plan; **O** (client-side
+per-role UI gating) followed as a direct, named follow-on to Phase M's own
+deferred item. What remains is the list below, none of it faked or
+half-built, all of it named honestly.
 
 ## Still not started after Phase 0/A–N
 
@@ -900,6 +961,3 @@ list below, none of it faked or half-built, all of it named honestly.
 4. Tauri desktop packaging — still Electron.
 5. AI Business Assistant (Sections 59–60).
 6. Real messaging integration (SMS/WhatsApp/email) behind the send buttons.
-7. Client-side per-role UI gating (Section 39) — Phase M's server-side
-   enforcement is real and tested, but nav items and buttons still render
-   the same for every role rather than being hidden per permission.

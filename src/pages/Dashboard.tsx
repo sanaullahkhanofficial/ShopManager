@@ -8,16 +8,21 @@ import { money, formatDateTime } from "../lib/format";
 import { StatCard } from "../components/ui/StatCard";
 import { DataTable } from "../components/ui/DataTable";
 import { TrendBarChart, BreakdownDonut, SplitBar } from "../components/ui/charts";
-import type { BankAccount, CashRegisterState, DashboardData, Sale } from "../types";
+import { usePermissionSet } from "../lib/permissions";
+import type { AuthUser, BankAccount, CashRegisterState, DashboardData, Sale } from "../types";
 import type { PageId } from "../components/layout/Sidebar";
 
-const QUICK_ACTIONS: Array<{ id: PageId; label: string; icon: React.ElementType; tone: string }> = [
-  { id: "pos", label: "New Sale (POS)", icon: ShoppingCart, tone: "bg-brand-green-50 text-brand-green-700" },
-  { id: "purchases", label: "New Purchase", icon: Truck, tone: "bg-blue-50 text-blue-700" },
-  { id: "products", label: "Add Product", icon: Plus, tone: "bg-orange-50 text-orange-700" },
-  { id: "customers", label: "Add Customer", icon: UserPlus, tone: "bg-purple-50 text-purple-700" },
-  { id: "suppliers", label: "Add Supplier", icon: UsersRound, tone: "bg-pink-50 text-pink-700" },
-  { id: "expenses", label: "Expense", icon: Wallet2, tone: "bg-brand-green-50 text-brand-green-700" },
+// Each quick action jumps straight to a specific create flow, so it's gated
+// by that flow's real backend permission — not the page's looser "view"
+// permission a nav entry uses. "Add Customer" needs customers.create, not
+// just customers.view, or a Viewer would see a button that always fails.
+const QUICK_ACTIONS: Array<{ id: PageId; label: string; icon: React.ElementType; tone: string; permission: string }> = [
+  { id: "pos", label: "New Sale (POS)", icon: ShoppingCart, tone: "bg-brand-green-50 text-brand-green-700", permission: "sales.create" },
+  { id: "purchases", label: "New Purchase", icon: Truck, tone: "bg-blue-50 text-blue-700", permission: "purchase.create" },
+  { id: "products", label: "Add Product", icon: Plus, tone: "bg-orange-50 text-orange-700", permission: "inventory.view" },
+  { id: "customers", label: "Add Customer", icon: UserPlus, tone: "bg-purple-50 text-purple-700", permission: "customers.create" },
+  { id: "suppliers", label: "Add Supplier", icon: UsersRound, tone: "bg-pink-50 text-pink-700", permission: "suppliers.create" },
+  { id: "expenses", label: "Expense", icon: Wallet2, tone: "bg-brand-green-50 text-brand-green-700", permission: "expenses.create" },
 ];
 
 // Fixed categorical color per payment method (never reassigned by rank — the
@@ -31,7 +36,9 @@ function weekdayLabel(iso: string) {
   return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short" });
 }
 
-export function Dashboard({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function Dashboard({ onNavigate, user }: { onNavigate: (page: PageId) => void; user: AuthUser }) {
+  const perms = usePermissionSet(user.role);
+  const visibleActions = QUICK_ACTIONS.filter((a) => perms?.has(a.permission));
   const [data, setData] = useState<DashboardData | null>(null);
   const [recent, setRecent] = useState<Sale[]>([]);
   const [register, setRegister] = useState<CashRegisterState | null>(null);
@@ -67,23 +74,25 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: PageId) => void }
             <p className="text-sm text-stone-500">Here's what's happening in your business today.</p>
           </div>
         </div>
-        <div className="card w-full max-w-md sm:w-auto">
-          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">
-            <Zap size={13} className="text-brand-gold" /> Quick Actions
-          </h3>
-          <div className="grid grid-cols-3 gap-2">
-            {QUICK_ACTIONS.map(({ id, label, icon: Icon, tone }) => (
-              <button
-                key={id}
-                onClick={() => onNavigate(id)}
-                className={`flex flex-col items-center gap-1 rounded-md px-2 py-2.5 text-center text-[11px] font-medium transition hover:brightness-95 ${tone}`}
-              >
-                <Icon size={16} />
-                {label}
-              </button>
-            ))}
+        {visibleActions.length > 0 && (
+          <div className="card w-full max-w-md sm:w-auto">
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">
+              <Zap size={13} className="text-brand-gold" /> Quick Actions
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {visibleActions.map(({ id, label, icon: Icon, tone }) => (
+                <button
+                  key={id}
+                  onClick={() => onNavigate(id)}
+                  className={`flex flex-col items-center gap-1 rounded-md px-2 py-2.5 text-center text-[11px] font-medium transition hover:brightness-95 ${tone}`}
+                >
+                  <Icon size={16} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div>

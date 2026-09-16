@@ -26,6 +26,7 @@ export const api = {
   permissionsDefinitions: () => invoke<string[]>("permissions:definitions"),
   permissionsMatrix: () => invoke("permissions:matrix"),
   permissionsUpdate: (x: Record<string, unknown>) => invoke("permissions:update", x),
+  permissionsForRole: (role: string) => invoke<Array<{ permission: string; allowed: number }>>("permissions:forRole", role),
 
   categoriesList: () => invoke("categories:list"),
   categoriesSave: (x: Record<string, unknown>) => invoke("categories:save", x),

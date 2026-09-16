@@ -361,6 +361,56 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase O checks (this session)
+- `scripts/test-phaseO.cjs` (`npm run test:phaseO`) — 8 assertions run
+  against the real backend, not a mock: every permission the frontend's
+  `PAGE_PERMISSIONS` map relies on is a genuine entry in
+  `permissions:definitions`, not an invented one; a Cashier's real
+  `permissions:forRole("Cashier")` data grants exactly Dashboard/POS/Cash/
+  Customers and correctly excludes Products/Reports/Settings/Users/
+  Purchases; a Viewer's real data grants read access to Products/Reports/
+  Customers/Suppliers/Cash but excludes POS/Purchases/Expenses/Settings;
+  an Owner's data grants every gated page; pages with no backend-enforced
+  permission (Backup, AI Assistant) stay accessible to every role, matching
+  real backend behavior rather than inventing a client-only restriction;
+  and granting `reports.view` to the Cashier role through the real
+  `permissions:update` matrix-editor path is immediately reflected in
+  `permissions:forRole`. All passed, plus all fifteen earlier suites
+  (`test-accounting` through `test-phaseN`) re-run clean.
+- Visual smoke test (Playwright, two separate logins against a mock
+  carrying each role's real granted permissions copied verbatim from
+  `DEFAULT_ROLE_PERMISSIONS` in `electron/main.cjs`): logging in as Owner
+  shows all 17 real nav entries (Purchase, Products/Inventory, Suppliers,
+  Sales/Purchase Returns, Payments, Expenses, Reports, Users &
+  Permissions, Settings, …); logging in as Cashier shows exactly the 6
+  entries their permissions allow (Dashboard, POS, Customers, Cash
+  Management, plus the two ungated Backup/AI Assistant pages) with every
+  other entry — and the "Products / Inventory" group entirely — absent.
+  The Dashboard's Quick Actions panel was screenshotted for the Cashier
+  and shows only "New Sale (POS)", confirming the per-action permission
+  fix (see below) rather than the page-level one. Zero console errors on
+  either run beyond the one harmless favicon 404.
+- **Bug caught before shipping, not after**: the first implementation of
+  Dashboard Quick Actions gating reused each target page's nav-level
+  permission (e.g. `customers.view` for "Add Customer"), which would have
+  shown a Viewer a button that always fails, since Viewer has
+  `customers.view` but not `customers.create`. Fixed by giving each quick
+  action its own real creation-permission check
+  (`sales.create`/`purchase.create`/`customers.create`/
+  `suppliers.create`/`expenses.create`/`inventory.view`) instead of
+  reusing the page's looser view permission, and hiding the whole card
+  when a role has none of them.
+- **Scope decision, stated plainly**: permissions are fetched once per
+  login/role change (matching how settings and the permission matrix
+  already load elsewhere in the app), not via a live subscription — a
+  permission revoked through the matrix editor while that role's user is
+  already signed in won't re-hide their sidebar until their next login.
+  The backend has no such lag: `requirePermission()` re-reads
+  `role_permissions` on every call, so the real write is blocked
+  immediately regardless of what the sidebar still shows.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

@@ -6,6 +6,7 @@ import {
   ChevronDown, SlidersHorizontal, ArrowLeftRight, BookText, ClipboardCheck,
 } from "lucide-react";
 import { useLang } from "../../lib/i18n";
+import { usePermissionSet, canAccessPage } from "../../lib/permissions";
 import { Logo } from "./Logo";
 import { WheatFieldBackdrop } from "./WheatFieldBackdrop";
 import type { AuthUser } from "../../types";
@@ -69,6 +70,18 @@ export const NAV_ICONS = Object.fromEntries(flatten(nav).map((n) => [n.id, n.ico
 export function Sidebar({ page, setPage, user }: { page: PageId; setPage: (p: PageId) => void; user: AuthUser }) {
   const { t } = useLang();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const perms = usePermissionSet(user.role);
+
+  // A page with no entry in PAGE_PERMISSIONS (backup, aiAssistant, …) stays
+  // visible to every role — it mirrors real backend behavior, it doesn't
+  // invent a client-only restriction the IPC layer wouldn't also enforce.
+  const visibleNav = nav
+    .map((entry) => {
+      if (!("group" in entry)) return entry;
+      const children = entry.children.filter((c) => canAccessPage(perms, c.id));
+      return children.length ? { ...entry, children } : null;
+    })
+    .filter((entry): entry is NavItem | NavGroup => entry !== null && ("group" in entry || canAccessPage(perms, entry.id)));
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-brand-navy-800 bg-brand-navy-900 text-stone-200">
@@ -81,7 +94,7 @@ export function Sidebar({ page, setPage, user }: { page: PageId; setPage: (p: Pa
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {nav.map((entry) => {
+        {visibleNav.map((entry) => {
           if ("group" in entry) {
             const childActive = entry.children.some((c) => c.id === page);
             const expanded = openGroups[entry.id] ?? childActive;
