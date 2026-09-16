@@ -1332,6 +1332,47 @@ inert form fields:
   category genuinely renders as "کھاد" (not a placeholder) via the real
   `category_name_urdu` field. Zero console errors.
 
+## Phase Y — Extend Urdu localization to Customers (this pass, real, tested)
+
+- **The headline change**: the Customers page — the shop/customer master
+  list every credit-sale, ledger entry and receivable balance in the app
+  ultimately points back to — is now genuinely bilingual: the five stat
+  cards, the search/filter toolbar, the full DataTable, both the compact
+  header and full Add/Edit Customer form, the stats mini-cards, the
+  Recent Transactions panel, the Print Statement/Send SMS/WhatsApp quick
+  actions, and the Customer Groups modal all render real Urdu. ~50 new
+  dictionary keys were added, reusing existing ones (`customer`,
+  `balance`, `openingBalance`, `currentBalance`, `resetBtn`,
+  `importCsvBtn`, `exportBtn`, `deactivateTooltip`) wherever a prior
+  phase's key already meant the same thing.
+- **Real data values translated through two new shared helpers, not just
+  labels**: `customer_type` (`Retail`/`Wholesale`/`Distributor`) now
+  renders as real Urdu via a new `customerTypeLabel()` helper, and the
+  Recent Transactions panel's raw `customer_transactions.type` enum
+  (`SALE_CREDIT`, `VOID_ADJUSTMENT`, `SALES_RETURN`, `PAYMENT`) now
+  renders as real Urdu via a new `ledgerTypeLabel()` helper — both added
+  next to the existing `paymentMethodLabel()` in `i18n.tsx` so they're a
+  single shared mapping, not a page-local guess. `ledgerTypeLabel()` also
+  covers `PURCHASE_CREDIT`/`PURCHASE_RETURN` up front, since
+  `supplier_transactions` uses the same enum shape — Suppliers and both
+  Ledger pages can reuse it directly in a future phase instead of
+  reinventing it. Real customer/shop names ("Karim Bakhsh", "Karim
+  General Store" in the smoke test) correctly stay untranslated in both
+  languages, matching the established pattern for user-entered data.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend file,
+  as expected for a pure frontend localization pass). Visual smoke test
+  (Playwright, two realistic mocked customers — one Wholesale with a real
+  outstanding balance and ledger history, one plain Retail — English then
+  Urdu): confirms the stat cards, toolbar, DataTable, the Add/Edit form
+  (both the read-only header state and the editable fields), the stats
+  mini-cards, and the Customer Groups modal all render real Urdu;
+  confirms the Recent Transactions panel renders "ادھار فروخت" and
+  "ادائیگی" for the real `SALE_CREDIT`/`PAYMENT` ledger rows rather than
+  leaking the raw English enum value; confirms both real customer names
+  stay untranslated in Urdu mode. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1352,12 +1393,13 @@ These are named explicitly so nobody mistakes silence for "it exists":
   Report"/PDF export uses this same browser print path deliberately —
   it's the real, working fallback, not a placeholder.)
 - **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
-  Management (Phase W) and Products (Phase X) are now genuinely bilingual;
-  every other page (Customers, Suppliers, Expenses, Reports, Settings,
-  Users, …) still renders RTL-mirrored but largely in English. The same
-  dictionary/`t()`/`paymentMethodLabel()` pattern is proven and repeatable
-  across four pages now — extending it further is real, bounded work for
-  future phases, not a different kind of problem.
+  Management (Phase W), Products (Phase X) and Customers (Phase Y) are now
+  genuinely bilingual; every other page (Suppliers, Expenses, Reports,
+  Settings, Users, the Customer/Supplier Ledger pages, …) still renders
+  RTL-mirrored but largely in English. The same
+  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()` pattern is
+  proven and repeatable across five pages now — extending it further is
+  real, bounded work for future phases, not a different kind of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
@@ -1369,7 +1411,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–X — all done
+## Page-level phases (A–N) plus Phase O–Y — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1384,28 +1426,32 @@ Reports CSV export), **R** (real backup encryption + restore), **S**
 (data-grid column visibility + real Print/PDF export), **T** (real,
 reachable Urdu localization for POS), **U** (fixed the real Sidebar RTL
 bug Phase T found), **V** (extended real Urdu localization to the
-Dashboard), **W** (extended it again to Cash Management) and **X**
-(extended it a fourth time to Products) followed as direct, named
-follow-ons — **O** closing Phase M's own stated gap, **P** turning the
-Section 59–60 placeholder into a genuinely working page, **Q** wiring the
-`reports.export` permission (real since Phase 0, never acted on) to an
-actual feature, **R** turning "Backup Now" from a one-way copy into an
-actual, restorable, optionally-encrypted disaster-recovery path, **S**
-closing out Section 53's two remaining real gaps, **T** making the
-already-built RTL/i18n system reachable for the first time and genuinely
-bilingual on the highest-traffic screen, **U** correctly diagnosing and
-fixing the RTL text-truncation bug Phase T's screenshot first exposed,
-**V** extending the same real pattern to the first page every user sees
-and unifying the payment-method-label mapping both pages now genuinely
-share, **W** extending it a third time to the daily cash-discipline
-workflow and catching a real silent-failure translation bug before it
-shipped, and **X** extending it a fourth time to the product catalog
-every other page depends on, catching (and this time preventing before it
-ever ran) the same class of string-hack bug Phase W had just named. What
-remains is the list below, none of it faked or half-built, all of it
-named honestly.
+Dashboard), **W** (extended it again to Cash Management), **X** (extended
+it a fourth time to Products) and **Y** (extended it a fifth time to
+Customers) followed as direct, named follow-ons — **O** closing Phase M's
+own stated gap, **P** turning the Section 59–60 placeholder into a
+genuinely working page, **Q** wiring the `reports.export` permission
+(real since Phase 0, never acted on) to an actual feature, **R** turning
+"Backup Now" from a one-way copy into an actual, restorable,
+optionally-encrypted disaster-recovery path, **S** closing out Section
+53's two remaining real gaps, **T** making the already-built RTL/i18n
+system reachable for the first time and genuinely bilingual on the
+highest-traffic screen, **U** correctly diagnosing and fixing the RTL
+text-truncation bug Phase T's screenshot first exposed, **V** extending
+the same real pattern to the first page every user sees and unifying the
+payment-method-label mapping both pages now genuinely share, **W**
+extending it a third time to the daily cash-discipline workflow and
+catching a real silent-failure translation bug before it shipped, **X**
+extending it a fourth time to the product catalog every other page
+depends on, catching (and this time preventing before it ever ran) the
+same class of string-hack bug Phase W had just named, and **Y** extending
+it a fifth time to the customer/shop master list and adding two new
+shared real-value-translation helpers (`customerTypeLabel()`,
+`ledgerTypeLabel()`) that future Suppliers/Ledger-page phases can reuse
+directly instead of reinventing. What remains is the list below, none of
+it faked or half-built, all of it named honestly.
 
-## Still not started after Phase 0/A–X
+## Still not started after Phase 0/A–Y
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.

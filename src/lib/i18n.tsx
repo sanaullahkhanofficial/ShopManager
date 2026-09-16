@@ -244,6 +244,60 @@ const dict: Record<string, { en: string; ur: string }> = {
   labelsReadyHint: { en: "labels ready — the print dialog should open automatically.", ur: "لیبلز تیار ہیں — پرنٹ ڈائیلاگ خود بخود کھلنا چاہیے۔" },
   resetBtn: { en: "Reset", ur: "دوبارہ ترتیب دیں" },
   productListTitle: { en: "Product List", ur: "پروڈکٹس کی فہرست" },
+
+  // Customers (Phase Y)
+  totalCustomers: { en: "Total Customers", ur: "کل گاہک" },
+  activeCustomersHint: { en: "Active Customers", ur: "فعال گاہک" },
+  activeShops: { en: "Active Shops", ur: "فعال دکانیں" },
+  regularBuyersHint: { en: "Regular Buyers", ur: "باقاعدہ خریدار" },
+  totalCreditLimit: { en: "Total Credit Limit", ur: "کل کریڈٹ حد" },
+  outstandingBalance: { en: "Outstanding Balance", ur: "بقایا رقم" },
+  newThisMonth: { en: "New This Month", ur: "اس ماہ نئے" },
+  searchByNameShopPhoneCnic: { en: "Search by name, shop, phone or CNIC…", ur: "نام، دکان، فون یا شناختی کارڈ سے تلاش کریں…" },
+  allCustomerTypes: { en: "All Customer Types", ur: "تمام گاہک کی اقسام" },
+  customerTypeRetail: { en: "Retail", ur: "خوردہ" },
+  customerTypeWholesale: { en: "Wholesale", ur: "تھوک" },
+  customerTypeDistributor: { en: "Distributor", ur: "ڈسٹری بیوٹر" },
+  allAreas: { en: "All Areas", ur: "تمام علاقے" },
+  customerGroups: { en: "Customer Groups", ur: "گاہک گروپس" },
+  customerNameCol: { en: "Customer Name", ur: "گاہک کا نام" },
+  shopNameCol: { en: "Shop Name", ur: "دکان کا نام" },
+  typeCol: { en: "Type", ur: "قسم" },
+  phoneCol: { en: "Phone", ur: "فون" },
+  areaCol: { en: "Area", ur: "علاقہ" },
+  creditLimitCol: { en: "Credit Limit", ur: "کریڈٹ حد" },
+  viewEditTooltip: { en: "View / Edit", ur: "دیکھیں / ترمیم کریں" },
+  ledgerTooltip: { en: "Ledger", ur: "کھاتہ" },
+  addCustomerTitle: { en: "Add Customer", ur: "گاہک شامل کریں" },
+  customerWord: { en: "Customer", ur: "گاہک" },
+  joinedPrefix: { en: "Joined", ur: "شمولیت:" },
+  totalPurchasesLabel: { en: "Total Purchases", ur: "کل خریداری" },
+  totalInvoicesLabel: { en: "Total Invoices", ur: "کل انوائسز" },
+  customerNameRequired: { en: "Customer Name *", ur: "گاہک کا نام *" },
+  phoneNumberField: { en: "Phone Number", ur: "فون نمبر" },
+  whatsappField: { en: "WhatsApp", ur: "واٹس ایپ" },
+  cnicField: { en: "CNIC", ur: "شناختی کارڈ" },
+  customerTypeField: { en: "Customer Type", ur: "گاہک کی قسم" },
+  cityField: { en: "City", ur: "شہر" },
+  areaLocationField: { en: "Area / Location", ur: "علاقہ / مقام" },
+  customerGroupField: { en: "Customer Group", ur: "گاہک گروپ" },
+  noneOption: { en: "None", ur: "کوئی نہیں" },
+  addressField: { en: "Address", ur: "پتہ" },
+  saveCustomer: { en: "Save Customer", ur: "گاہک محفوظ کریں" },
+  recentTransactions: { en: "Recent Transactions", ur: "حالیہ لین دین" },
+  viewAllArrow: { en: "View All →", ur: "سب دیکھیں ←" },
+  printStatement: { en: "Print Statement", ur: "اسٹیٹمنٹ پرنٹ کریں" },
+  sendSms: { en: "Send SMS", ur: "ایس ایم ایس بھیجیں" },
+  noGroupsYet: { en: "No groups yet.", ur: "ابھی تک کوئی گروپ نہیں۔" },
+  groupNameField: { en: "Group Name", ur: "گروپ کا نام" },
+  customerListTitle: { en: "Customer List", ur: "گاہکوں کی فہرست" },
+  ledgerSaleCredit: { en: "Credit Sale", ur: "ادھار فروخت" },
+  ledgerVoidAdjustment: { en: "Void Adjustment", ur: "منسوخی ایڈجسٹمنٹ" },
+  ledgerSalesReturn: { en: "Sales Return", ur: "فروخت کی واپسی" },
+  ledgerPurchaseCredit: { en: "Credit Purchase", ur: "ادھار خریداری" },
+  ledgerPurchaseReturn: { en: "Purchase Return", ur: "خریداری کی واپسی" },
+  ledgerPayment: { en: "Payment", ur: "ادائیگی" },
+  groupNamePlaceholder: { en: "e.g. VIP Wholesale", ur: "مثال: وی آئی پی تھوک" },
 };
 
 // JazzCash/Easypaisa are brand names and stay untranslated everywhere; the
@@ -256,6 +310,28 @@ const PAYMENT_METHOD_KEYS: Record<string, keyof typeof dict> = {
 export function paymentMethodLabel(method: string, t: (key: keyof typeof dict) => string): string {
   const key = PAYMENT_METHOD_KEYS[method];
   return key ? t(key) : method;
+}
+
+// Raw customer_transactions/supplier_transactions.type enum values (Phase Y)
+// — shared here so CustomerLedger/SupplierLedger/Suppliers can reuse the same
+// mapping instead of each page inventing its own English->Urdu guess.
+const LEDGER_TYPE_KEYS: Record<string, keyof typeof dict> = {
+  SALE_CREDIT: "ledgerSaleCredit", VOID_ADJUSTMENT: "ledgerVoidAdjustment", SALES_RETURN: "ledgerSalesReturn",
+  PURCHASE_CREDIT: "ledgerPurchaseCredit", PURCHASE_RETURN: "ledgerPurchaseReturn", PAYMENT: "ledgerPayment",
+};
+export function ledgerTypeLabel(type: string, t: (key: keyof typeof dict) => string): string {
+  const key = LEDGER_TYPE_KEYS[type];
+  return key ? t(key) : type.replace(/_/g, " ");
+}
+
+// Real customers.customer_type enum values (Phase Y) — same real-value
+// translation pattern as paymentMethodLabel/ledgerTypeLabel above.
+const CUSTOMER_TYPE_KEYS: Record<string, keyof typeof dict> = {
+  Retail: "customerTypeRetail", Wholesale: "customerTypeWholesale", Distributor: "customerTypeDistributor",
+};
+export function customerTypeLabel(type: string, t: (key: keyof typeof dict) => string): string {
+  const key = CUSTOMER_TYPE_KEYS[type];
+  return key ? t(key) : type;
 }
 
 interface Ctx {

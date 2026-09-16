@@ -730,6 +730,41 @@ any other network resource.
   a dictionary placeholder. Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase Y checks (this session)
+- No new `scripts/test-phaseY.cjs`: this phase touched two frontend files
+  (`i18n.tsx`, `Customers.tsx`) and no backend code. Verified via
+  `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Two new shared translation helpers added next to `paymentMethodLabel()`
+  in `i18n.tsx`: `customerTypeLabel()` for the real
+  `customers.customer_type` enum, and `ledgerTypeLabel()` for the real
+  `customer_transactions`/`supplier_transactions.type` enum — checked
+  against `electron/main.cjs`'s actual `INSERT INTO customer_transactions`
+  / `INSERT INTO supplier_transactions` call sites to confirm the real
+  value set (`SALE_CREDIT`, `VOID_ADJUSTMENT`, `SALES_RETURN`, `PAYMENT`,
+  `PURCHASE_CREDIT`, `PURCHASE_RETURN`) rather than guessing at it.
+- A loop variable shadowing the `t()` translation function
+  (`recentTx.map((t) => ...)`, reusing the same name `useLang()` already
+  bound in the enclosing scope) was renamed to `tx` while wiring the
+  Recent Transactions panel — same category of mistake as the
+  `BarcodeSheetModal` timer-variable rename in Phase X, caught the same
+  way, by reading the diff rather than by a failure.
+- Visual smoke test (Playwright, two realistic mocked customers — a
+  Wholesale shop with a real Rs. 12,000 outstanding balance and two
+  ledger rows, and a plain Retail walk-in with no balance — English then
+  Urdu): confirms the five stat cards, the search/filter toolbar, the
+  DataTable, the Add/Edit Customer form (both the read-only header state
+  shown after selecting a row and the full editable field set), the
+  stats mini-cards, and the Customer Groups modal all render real Urdu;
+  confirms the Recent Transactions panel renders "ادھار فروخت" for the
+  real `SALE_CREDIT` row and "ادائیگی" for the real `PAYMENT` row rather
+  than leaking `SALE_CREDIT`/`PAYMENT` as raw text (asserted directly by
+  checking the raw enum strings do NOT appear in the rendered Urdu page);
+  confirms both real customer/shop names ("Karim Bakhsh", "Karim General
+  Store") stay untranslated in both languages. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
