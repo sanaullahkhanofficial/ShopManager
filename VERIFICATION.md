@@ -917,6 +917,48 @@ any other network resource.
   fixes above.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AD checks (this session)
+- No new `scripts/test-phaseAD.cjs`: this phase touched two frontend
+  files (`i18n.tsx`, `Users.tsx`) and no backend code. Verified via
+  `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Before writing any dictionary keys, ran
+  `grep -oP 'audit\([^,]+,\s*"\K[A-Z_]+' electron/main.cjs | sort -u` and
+  the equivalent for the entity argument, to get the real, complete set
+  of `audit_log.action` (20 values) and `.entity` (14 values) strings
+  actually written by the backend — confirmed every value against this
+  list rather than translating only the ones visible in a quick manual
+  read of `Users.tsx`.
+- `roleLabel()`, `moduleLabel()`, and `actionLabel()` were each checked
+  against their real source: `Role` from `src/types/index.ts`,
+  `MODULE_LABELS`/`ACTION_LABELS`'s original keys from `Users.tsx`
+  itself before they were deleted and replaced by the dictionary-backed
+  helpers.
+- Caught mid-draft: `moduleDashboard`, `moduleExpenses`, `moduleReports`,
+  `moduleSettings`, and `moduleUsers` were about to duplicate five
+  existing dictionary keys with identical English/Urdu text; removed
+  before they were ever wired in and `moduleLabel()`'s lookup table
+  points at the existing `dashboard`/`expenses`/`reports`/`settings`/
+  `usersTab` keys instead.
+- Visual smoke test (Playwright, two realistic mocked users — one Owner,
+  one Cashier — a three-role/three-permission slice of a real
+  permission matrix with the Owner/users.manage cell correctly locked,
+  and three realistic audit rows covering `LOGIN`/`CREATE`/
+  `STOCK_ADJUSTED` with real `user`/`sale`/`product` entities — all
+  three tabs exercised in English then Urdu): confirms the Users tab's
+  table, Add User modal, and Reset Password modal render real Urdu with
+  the real user name "Hamid Cashier" staying untranslated; confirms the
+  Permission Matrix's module groups, action rows, and role column
+  headers ("مالک"/"منیجر"/"کیشیئر") render real Urdu, including the
+  correctly-disabled Owner/users.manage checkbox; confirms the Activity
+  Log renders "لاگ ان"/"تخلیق"/"اسٹاک ایڈجسٹ ہوا" for the real audit
+  actions and "فروخت #42"/"پروڈکٹ #7" for the real entity+ID pairs
+  rather than leaking any raw enum text (asserted directly — checked the
+  raw `STOCK_ADJUSTED`/`LOGIN` strings do NOT appear in the rendered
+  Urdu page). Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

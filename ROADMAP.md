@@ -1577,6 +1577,65 @@ inert form fields:
   fixes above.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AD — Extend Urdu localization to Users & Permissions (this pass, real, tested)
+
+- **The headline change**: the Users & Permissions page — all three tabs
+  (Users, Permission Matrix, Activity Log) — is now genuinely bilingual,
+  including the two data tables (`MODULE_LABELS`/`ACTION_LABELS`) the
+  Permission Matrix previously built from hardcoded English-only lookup
+  objects defined right in the page file.
+- **The largest enum-translation lift of any localization phase so
+  far, done by enumeration, not guesswork**: the Activity Log renders
+  the real `audit_log.action` and `.entity` columns, which are written
+  by dozens of separate `audit(...)` call sites scattered across
+  `electron/main.cjs`, not one bounded field like every previous
+  phase's enums. Rather than translating only the handful of values a
+  quick mental scan would surface, every real value was enumerated
+  directly with `grep -oP` against every `audit(...)` call site (20
+  distinct action values, 14 distinct entity values) before writing a
+  single dictionary key — so `auditActionLabel()`/`auditEntityLabel()`
+  cover the actual production value set, not an approximation of it.
+- **A real Role enum, translated once, reused across both the Users
+  table and the Permission Matrix's column headers**: `roleLabel()`
+  covers all eight real roles (Owner, Manager, Accountant, Sales Staff,
+  Purchase Staff, Inventory Staff, Cashier, Viewer) and is used in three
+  places on this page (the Users table's Role column, the Add User
+  form's Role dropdown, and the Permission Matrix's role column
+  headers) — the same value translated once, not three times.
+- **Dictionary reuse caught mid-draft, again**: five of the twelve
+  Permission Matrix module names (`dashboard`, `expenses`, `reports`,
+  `settings`, and `users`) turned out to have English wording identical
+  to existing nav dictionary keys; `moduleLabel()`'s lookup table reuses
+  those keys directly instead of duplicating the same English/Urdu pair
+  under a new name, continuing the reuse discipline every phase since X
+  has applied.
+- **A scope boundary drawn on purpose, not by oversight**: `user.role`
+  is displayed as raw, untranslated English in several other places
+  (`Sidebar.tsx`'s `ProfilePill`, `Dashboard.tsx`, `Reports.tsx`,
+  `Backup.tsx`) that this phase did not touch. `roleLabel()` could be
+  dropped into any of them in a future phase for free — it is a general
+  helper, not a Users-page-only one — but doing so now would have
+  pulled four files outside this phase's stated scope into an
+  "and also touched" list. Noted here explicitly rather than silently
+  left as a gap nobody flagged.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend
+  file, as expected for a pure frontend localization pass). Visual
+  smoke test (Playwright, two realistic mocked users including one
+  non-Owner role, a three-role/three-permission slice of a real
+  permission matrix, and three realistic audit log rows covering
+  `LOGIN`/`CREATE`/`STOCK_ADJUSTED` — all three tabs exercised in
+  English then Urdu): confirms the Users tab's table, Add User modal,
+  and Reset Password modal; the Permission Matrix's module groups,
+  action rows, and role column headers; and the Activity Log's action
+  badges and entity column all render real Urdu. Confirms the Activity
+  Log renders "لاگ ان"/"تخلیق"/"اسٹاک ایڈجسٹ ہوا" for the real
+  `LOGIN`/`CREATE`/`STOCK_ADJUSTED` rows and "فروخت #42"/"پروڈکٹ #7" for
+  the real `sale`/`product` entity+ID pairs, rather than leaking any raw
+  enum text (asserted directly). Confirms real user names ("Hamid
+  Cashier") stay untranslated in both languages. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1598,14 +1657,14 @@ These are named explicitly so nobody mistakes silence for "it exists":
   it's the real, working fallback, not a placeholder.)
 - **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
   Management (Phase W), Products (Phase X), Customers (Phase Y),
-  Suppliers (Phase Z), Expenses (Phase AA), Customer Ledger (Phase AB)
-  and Supplier Ledger (Phase AC) are now genuinely bilingual, plus the
-  shared `StatusBadge` component Purchase Orders also uses; every other
-  page (Reports, Settings, Users, Purchase Orders' own remaining
-  strings, …) still renders RTL-mirrored but largely in English. The
-  same
-  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`customerTypeLabel()`/`frequencyLabel()`/`poStatusLabel()`
-  pattern is proven and repeatable across nine pages now — extending it
+  Suppliers (Phase Z), Expenses (Phase AA), Customer Ledger (Phase AB),
+  Supplier Ledger (Phase AC) and Users & Permissions (Phase AD) are now
+  genuinely bilingual, plus the shared `StatusBadge` component Purchase
+  Orders also uses; every other page (Reports, Settings, Purchase
+  Orders' own remaining strings, …) still renders RTL-mirrored but
+  largely in English. The same
+  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`customerTypeLabel()`/`frequencyLabel()`/`poStatusLabel()`/`roleLabel()`
+  pattern is proven and repeatable across ten pages now — extending it
   further is real, bounded work for future phases, not a different kind
   of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
@@ -1619,7 +1678,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–Z and AA–AC — all done
+## Page-level phases (A–N) plus Phase O–Z and AA–AD — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1673,12 +1732,19 @@ of Phase AB's own mirror — adding a `poStatusLabel()` helper for the
 Purchase Order status enum that, because it lives in a `StatusBadge`
 component shared with `PurchaseOrders.tsx`, made that page's status
 badge bilingual too as a named, honest side effect without claiming
-the rest of that page as localized. Phase Z used up the original
-lettered sequence, so **AA** is the first two-letter follow-on phase;
-the convention continues AD, AE, … from here. What remains is the list
-below, none of it faked or half-built, all of it named honestly.
+the rest of that page as localized, and **AD** extending it a tenth
+time to Users & Permissions, its largest single enumeration lift yet —
+34 real audit-log action/entity values grepped directly from every
+`audit(...)` call site in `electron/main.cjs` rather than guessed at —
+plus a `roleLabel()` helper built as a general-purpose mapping (used
+three times on this one page already) that a future phase can drop
+into the four other files that still show `user.role` raw without
+reinventing it. Phase Z used up the original lettered sequence, so
+**AA** is the first two-letter follow-on phase; the convention
+continues AE, AF, … from here. What remains is the list below, none of
+it faked or half-built, all of it named honestly.
 
-## Still not started after Phase 0/A–Z and AA–AC
+## Still not started after Phase 0/A–Z and AA–AD
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.

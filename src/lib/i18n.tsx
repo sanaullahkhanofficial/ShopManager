@@ -417,6 +417,94 @@ const dict: Record<string, { en: string; ur: string }> = {
   poStatusPartiallyReceived: { en: "PARTIALLY RECEIVED", ur: "جزوی موصول" },
   poStatusReceived: { en: "RECEIVED", ur: "موصول ہو گیا" },
   poStatusCancelled: { en: "CANCELLED", ur: "منسوخ" },
+
+  // Users & Permissions (Phase AD)
+  usersTab: { en: "Users", ur: "صارفین" },
+  permissionMatrixTab: { en: "Permission Matrix", ur: "اجازت میٹرکس" },
+  activityLogTab: { en: "Activity Log", ur: "سرگرمی لاگ" },
+  addUserBtn: { en: "Add User", ur: "صارف شامل کریں" },
+  usernameCol: { en: "Username", ur: "صارف نام" },
+  roleCol: { en: "Role", ur: "کردار" },
+  createdCol: { en: "Created", ur: "تخلیق شدہ" },
+  resetPasswordLink: { en: "Reset Password", ur: "پاس ورڈ دوبارہ ترتیب دیں" },
+  addUserTitle: { en: "Add User", ur: "صارف شامل کریں" },
+  usernameField: { en: "Username", ur: "صارف نام" },
+  displayNameField: { en: "Display Name", ur: "ظاہری نام" },
+  passwordField: { en: "Password", ur: "پاس ورڈ" },
+  createUserBtn: { en: "Create User", ur: "صارف بنائیں" },
+  resetPasswordPrefix: { en: "Reset Password —", ur: "پاس ورڈ دوبارہ ترتیب دیں —" },
+  newPasswordField: { en: "New Password", ur: "نیا پاس ورڈ" },
+  atLeast4CharsPlaceholder: { en: "At least 4 characters", ur: "کم از کم 4 حروف" },
+  permissionMatrixHint: {
+    en: "Toggle which roles can perform each action. Changes take effect immediately and are enforced on every save, not just hidden in the UI.",
+    ur: "منتخب کریں کہ کون سا کردار کون سا عمل انجام دے سکتا ہے۔ تبدیلیاں فوری طور پر نافذ ہوتی ہیں اور ہر محفوظ کرنے پر عمل درآمد کی جاتی ہیں، صرف UI میں چھپائی نہیں جاتیں۔",
+  },
+  moduleActionCol: { en: "Module / Action", ur: "ماڈیول / عمل" },
+  ownerLockedTooltip: { en: "Owner must always be able to manage users", ur: "مالک کو ہمیشہ صارفین کا انتظام کرنے کے قابل ہونا چاہیے" },
+  activityLoginLogTitle: { en: "Activity & Login Log", ur: "سرگرمی اور لاگ ان لاگ" },
+  userCol: { en: "User", ur: "صارف" },
+  systemWord: { en: "System", ur: "سسٹم" },
+  entityCol: { en: "Entity", ur: "ادارہ" },
+  detailsCol: { en: "Details", ur: "تفصیلات" },
+  roleOwner: { en: "Owner", ur: "مالک" },
+  roleManager: { en: "Manager", ur: "منیجر" },
+  roleAccountant: { en: "Accountant", ur: "اکاؤنٹنٹ" },
+  roleSalesStaff: { en: "Sales Staff", ur: "سیلز اسٹاف" },
+  rolePurchaseStaff: { en: "Purchase Staff", ur: "خریداری اسٹاف" },
+  roleInventoryStaff: { en: "Inventory Staff", ur: "انوینٹری اسٹاف" },
+  roleCashier: { en: "Cashier", ur: "کیشیئر" },
+  roleViewer: { en: "Viewer", ur: "ناظر" },
+  moduleSales: { en: "Sales", ur: "فروخت" },
+  modulePurchase: { en: "Purchases", ur: "خریداری" },
+  moduleInventory: { en: "Inventory", ur: "انوینٹری" },
+  moduleCustomers: { en: "Customers", ur: "گاہک" },
+  moduleSuppliers: { en: "Suppliers", ur: "سپلائرز" },
+  moduleCash: { en: "Cash", ur: "نقدی" },
+  modulePrinter: { en: "Printer", ur: "پرنٹر" },
+  actionView: { en: "View", ur: "دیکھیں" },
+  actionCreate: { en: "Create", ur: "بنائیں" },
+  actionEdit: { en: "Edit", ur: "ترمیم کریں" },
+  actionDelete: { en: "Delete", ur: "حذف کریں" },
+  actionReturn: { en: "Return", ur: "واپسی" },
+  actionAdjust: { en: "Adjust", ur: "ایڈجسٹ کریں" },
+  actionPayment: { en: "Payment", ur: "ادائیگی" },
+  actionManage: { en: "Manage", ur: "انتظام کریں" },
+  actionExport: { en: "Export", ur: "برآمد کریں" },
+  auditAutoBackupCreated: { en: "AUTO BACKUP CREATED", ur: "خودکار بیک اپ بن گیا" },
+  auditBackupCreated: { en: "BACKUP CREATED", ur: "بیک اپ بن گیا" },
+  auditBackupRestored: { en: "BACKUP RESTORED", ur: "بیک اپ بحال ہو گیا" },
+  auditBarcodesGenerated: { en: "BARCODES GENERATED", ur: "بارکوڈ بن گئے" },
+  auditBulkPriceUpdate: { en: "BULK PRICE UPDATE", ur: "بلک قیمت اپ ڈیٹ" },
+  auditCashRegisterClosed: { en: "CASH REGISTER CLOSED", ur: "کیش رجسٹر بند ہوا" },
+  auditCashRegisterOpened: { en: "CASH REGISTER OPENED", ur: "کیش رجسٹر کھلا" },
+  auditCashTransfer: { en: "CASH TRANSFER", ur: "نقدی کی منتقلی" },
+  auditCreate: { en: "CREATE", ur: "تخلیق" },
+  auditCreditLimitChanged: { en: "CREDIT LIMIT CHANGED", ur: "کریڈٹ حد تبدیل ہوئی" },
+  auditLogin: { en: "LOGIN", ur: "لاگ ان" },
+  auditLoginFailed: { en: "LOGIN FAILED", ur: "لاگ ان ناکام" },
+  auditPasswordReset: { en: "PASSWORD RESET", ur: "پاس ورڈ دوبارہ ترتیب" },
+  auditPermissionChanged: { en: "PERMISSION CHANGED", ur: "اجازت تبدیل ہوئی" },
+  auditPoStatusChanged: { en: "PO STATUS CHANGED", ur: "PO حیثیت تبدیل ہوئی" },
+  auditPriceChanged: { en: "PRICE CHANGED", ur: "قیمت تبدیل ہوئی" },
+  auditSettingsChanged: { en: "SETTINGS CHANGED", ur: "ترتیبات تبدیل ہوئیں" },
+  auditStockAdjusted: { en: "STOCK ADJUSTED", ur: "اسٹاک ایڈجسٹ ہوا" },
+  auditStockTransfer: { en: "STOCK TRANSFER", ur: "اسٹاک کی منتقلی" },
+  auditVoid: { en: "VOID", ur: "منسوخ" },
+  entityCashRegister: { en: "cash register", ur: "کیش رجسٹر" },
+  entityCustomer: { en: "customer", ur: "گاہک" },
+  entityExpense: { en: "expense", ur: "خرچہ" },
+  entityPoOrder: { en: "purchase order", ur: "خریداری آرڈر" },
+  entityProduct: { en: "product", ur: "پروڈکٹ" },
+  entityPurchase: { en: "purchase", ur: "خریداری" },
+  entityPurchaseReturn: { en: "purchase return", ur: "خریداری کی واپسی" },
+  entityRole: { en: "role", ur: "کردار" },
+  entitySale: { en: "sale", ur: "فروخت" },
+  entitySalesReturn: { en: "sales return", ur: "فروخت کی واپسی" },
+  entitySettings: { en: "settings", ur: "ترتیبات" },
+  entitySupplier: { en: "supplier", ur: "سپلائر" },
+  entitySystem: { en: "system", ur: "سسٹم" },
+  entityTransfer: { en: "transfer", ur: "منتقلی" },
+  entityUser: { en: "user", ur: "صارف" },
 };
 
 // JazzCash/Easypaisa are brand names and stay untranslated everywhere; the
@@ -473,6 +561,65 @@ const PO_STATUS_KEYS: Record<string, keyof typeof dict> = {
 export function poStatusLabel(status: string, t: (key: keyof typeof dict) => string): string {
   const key = PO_STATUS_KEYS[status];
   return key ? t(key) : status.replace(/_/g, " ");
+}
+
+// Real Role enum values (Phase AD).
+const ROLE_KEYS: Record<string, keyof typeof dict> = {
+  Owner: "roleOwner", Manager: "roleManager", Accountant: "roleAccountant", "Sales Staff": "roleSalesStaff",
+  "Purchase Staff": "rolePurchaseStaff", "Inventory Staff": "roleInventoryStaff", Cashier: "roleCashier", Viewer: "roleViewer",
+};
+export function roleLabel(role: string, t: (key: keyof typeof dict) => string): string {
+  const key = ROLE_KEYS[role];
+  return key ? t(key) : role;
+}
+
+// Permission-matrix module/action names (Phase AD). Three of the twelve real
+// modules (dashboard, expenses, reports, settings, users) reuse existing nav
+// dictionary keys since the English wording is identical.
+const MODULE_KEYS: Record<string, keyof typeof dict> = {
+  dashboard: "dashboard", sales: "moduleSales", purchase: "modulePurchase", inventory: "moduleInventory",
+  customers: "moduleCustomers", suppliers: "moduleSuppliers", cash: "moduleCash", expenses: "expenses",
+  reports: "reports", users: "usersTab", settings: "settings", printer: "modulePrinter",
+};
+export function moduleLabel(mod: string, t: (key: keyof typeof dict) => string): string {
+  const key = MODULE_KEYS[mod];
+  return key ? t(key) : mod;
+}
+const ACTION_KEYS: Record<string, keyof typeof dict> = {
+  view: "actionView", create: "actionCreate", edit: "actionEdit", delete: "actionDelete", return: "actionReturn",
+  adjust: "actionAdjust", payment: "actionPayment", manage: "actionManage", export: "actionExport",
+};
+export function actionLabel(action: string, t: (key: keyof typeof dict) => string): string {
+  const key = ACTION_KEYS[action];
+  return key ? t(key) : action;
+}
+
+// Real audit_log.action values (Phase AD) — enumerated directly from every
+// audit(...) call site in electron/main.cjs, not guessed.
+const AUDIT_ACTION_KEYS: Record<string, keyof typeof dict> = {
+  AUTO_BACKUP_CREATED: "auditAutoBackupCreated", BACKUP_CREATED: "auditBackupCreated", BACKUP_RESTORED: "auditBackupRestored",
+  BARCODES_GENERATED: "auditBarcodesGenerated", BULK_PRICE_UPDATE: "auditBulkPriceUpdate", CASH_REGISTER_CLOSED: "auditCashRegisterClosed",
+  CASH_REGISTER_OPENED: "auditCashRegisterOpened", CASH_TRANSFER: "auditCashTransfer", CREATE: "auditCreate",
+  CREDIT_LIMIT_CHANGED: "auditCreditLimitChanged", LOGIN: "auditLogin", LOGIN_FAILED: "auditLoginFailed",
+  PASSWORD_RESET: "auditPasswordReset", PERMISSION_CHANGED: "auditPermissionChanged", PO_STATUS_CHANGED: "auditPoStatusChanged",
+  PRICE_CHANGED: "auditPriceChanged", SETTINGS_CHANGED: "auditSettingsChanged", STOCK_ADJUSTED: "auditStockAdjusted",
+  STOCK_TRANSFER: "auditStockTransfer", VOID: "auditVoid",
+};
+export function auditActionLabel(action: string, t: (key: keyof typeof dict) => string): string {
+  const key = AUDIT_ACTION_KEYS[action];
+  return key ? t(key) : action.replace(/_/g, " ");
+}
+
+// Real audit_log.entity values (Phase AD) — same enumeration discipline as above.
+const AUDIT_ENTITY_KEYS: Record<string, keyof typeof dict> = {
+  cash_register: "entityCashRegister", customer: "entityCustomer", expense: "entityExpense", po_order: "entityPoOrder",
+  product: "entityProduct", purchase: "entityPurchase", purchase_return: "entityPurchaseReturn", role: "entityRole",
+  sale: "entitySale", sales_return: "entitySalesReturn", settings: "entitySettings", supplier: "entitySupplier",
+  system: "entitySystem", transfer: "entityTransfer", user: "entityUser",
+};
+export function auditEntityLabel(entity: string, t: (key: keyof typeof dict) => string): string {
+  const key = AUDIT_ENTITY_KEYS[entity];
+  return key ? t(key) : entity;
 }
 
 interface Ctx {
