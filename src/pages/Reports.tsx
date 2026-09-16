@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
-import { AlertTriangle, Download, PackageX, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, Download, PackageX, Printer, TrendingDown, TrendingUp, Users, UsersRound } from "lucide-react";
 import { api } from "../lib/api";
 import { money, formatDate, todayIso } from "../lib/format";
 import { Field } from "../components/ui/Field";
@@ -9,8 +9,9 @@ import { Tabs } from "../components/ui/Tabs";
 import { DataTable } from "../components/ui/DataTable";
 import { Button } from "../components/ui/Button";
 import { TrendBarChart, SplitBar } from "../components/ui/charts";
+import { PrintableList } from "../components/PrintableList";
 import { usePermissionSet } from "../lib/permissions";
-import type { AuthUser, CustomerReportRow, InventoryReport, ReportCompare, ReportSummary, ReportTrend, SupplierReportRow, TopProductRow } from "../types";
+import type { AuthUser, CustomerReportRow, InventoryReport, ReportCompare, ReportSummary, ReportTrend, Settings, SupplierReportRow, TopProductRow } from "../types";
 
 interface Range { from: string; to: string }
 
@@ -50,6 +51,19 @@ function ExportButton({ canExport, onExport }: { canExport: boolean; onExport: (
   );
 }
 
+// Section 53: real PDF export, via the same window.print()-to-#print-root
+// mechanism already used for receipts and every other page's "Print List"
+// button (PrintableList) — the OS print dialog's own "Save as PDF" is the
+// real PDF output, rather than pulling in a whole new PDF-generation
+// library for a second way to produce the same file type.
+function PrintButton({ onPrint }: { onPrint: () => void }) {
+  return (
+    <Button variant="ghost" className="text-xs" onClick={onPrint}>
+      <Printer size={14} /> Print Report
+    </Button>
+  );
+}
+
 function trendLabel(label: string, granularity: "day" | "month") {
   if (granularity === "month") {
     const [y, m] = label.split("-");
@@ -58,11 +72,12 @@ function trendLabel(label: string, granularity: "day" | "month") {
   return new Date(label + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-function SalesRevenueTab({ range, canExport }: { range: Range; canExport: boolean }) {
+function SalesRevenueTab({ range, canExport, settings }: { range: Range; canExport: boolean; settings: Settings }) {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [compare, setCompare] = useState<ReportCompare | null>(null);
   const [trend, setTrend] = useState<ReportTrend | null>(null);
   const [topProducts, setTopProducts] = useState<TopProductRow[]>([]);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     api.reportsSummary(range).then((r) => setSummary(r as ReportSummary));
@@ -70,6 +85,10 @@ function SalesRevenueTab({ range, canExport }: { range: Range; canExport: boolea
     api.reportsTrend(range).then((r) => setTrend(r as ReportTrend));
     api.reportsTopProducts({ ...range, limit: 10 }).then((r) => setTopProducts(r as TopProductRow[]));
   }, [range.from, range.to]);
+
+  useEffect(() => {
+    if (printing) { const t = setTimeout(() => window.print(), 150); return () => clearTimeout(t); }
+  }, [printing]);
 
   function exportCsv() {
     if (!summary) return;
@@ -88,7 +107,7 @@ function SalesRevenueTab({ range, canExport }: { range: Range; canExport: boolea
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
+      <div className="flex justify-end gap-2"><PrintButton onPrint={() => setPrinting(true)} /><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Sales" value={money(summary.sales)} hint={compare && <DeltaBadge pct={compare.deltaPct.sales} />} tone="green" />
         <StatCard label="Net Sales" value={money(summary.netSales)} />
@@ -121,29 +140,52 @@ function SalesRevenueTab({ range, canExport }: { range: Range; canExport: boolea
           />
         </div>
       </div>
+
+      {printing && (
+        <PrintableList
+          title={`Sales & Revenue Report — Top Selling Products (${range.from} to ${range.to})`}
+          settings={settings}
+          rows={topProducts}
+          keyField={(r) => r.id}
+          columns={[
+            { header: "Product", render: (r) => r.name },
+            { header: "نام (Urdu)", render: (r) => r.name_urdu },
+            { header: "Qty Sold", render: (r) => `${r.qty} ${r.package_unit}` },
+            { header: "Revenue", render: (r) => money(r.revenue) },
+          ]}
+        />
+      )}
     </div>
   );
 }
 
-function ProfitLossTab({ range, canExport }: { range: Range; canExport: boolean }) {
+function ProfitLossTab({ range, canExport, settings }: { range: Range; canExport: boolean; settings: Settings }) {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [compare, setCompare] = useState<ReportCompare | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     api.reportsSummary(range).then((r) => setSummary(r as ReportSummary));
     api.reportsCompare(range).then((r) => setCompare(r as ReportCompare));
   }, [range.from, range.to]);
 
-  function exportCsv() {
-    if (!summary) return;
-    const rows = [
+  useEffect(() => {
+    if (printing) { const t = setTimeout(() => window.print(), 150); return () => clearTimeout(t); }
+  }, [printing]);
+
+  function plLines() {
+    if (!summary) return [];
+    return [
       { Line: "Sales Revenue", Amount: summary.sales }, { Line: "Sales Returns", Amount: -summary.salesReturns },
       { Line: "Net Sales", Amount: summary.netSales }, { Line: "Cost of Goods Sold", Amount: -summary.cogs },
       { Line: "Gross Profit", Amount: summary.grossProfit }, { Line: "Gross Margin %", Amount: summary.grossMarginPct.toFixed(1) },
       { Line: "Operating Expenses", Amount: -summary.expenses }, { Line: "Net Profit", Amount: summary.netProfit },
       { Line: "Net Margin %", Amount: summary.netMarginPct.toFixed(1) },
     ];
-    const csv = `Profit & Loss Statement,${range.from} to ${range.to}\n\n${Papa.unparse(rows)}`;
+  }
+  function exportCsv() {
+    if (!summary) return;
+    const csv = `Profit & Loss Statement,${range.from} to ${range.to}\n\n${Papa.unparse(plLines())}`;
     api.filesSaveText({ title: "Export Profit & Loss Statement", defaultPath: `profit-loss-${range.from}-to-${range.to}.csv`, content: csv });
   }
 
@@ -151,7 +193,7 @@ function ProfitLossTab({ range, canExport }: { range: Range; canExport: boolean 
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
+      <div className="flex justify-end gap-2"><PrintButton onPrint={() => setPrinting(true)} /><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Sales" value={money(summary.sales)} tone="green" hint={compare && <DeltaBadge pct={compare.deltaPct.sales} />} />
         <StatCard label="Gross Profit" value={money(summary.grossProfit)} hint={compare && <DeltaBadge pct={compare.deltaPct.grossProfit} />} />
@@ -191,6 +233,19 @@ function ProfitLossTab({ range, canExport }: { range: Range; canExport: boolean 
           ]} />
         </div>
       </div>
+
+      {printing && (
+        <PrintableList
+          title={`Profit & Loss Statement (${range.from} to ${range.to})`}
+          settings={settings}
+          rows={plLines()}
+          keyField={(r) => r.Line}
+          columns={[
+            { header: "Line", render: (r) => r.Line },
+            { header: "Amount", render: (r) => typeof r.Amount === "number" ? money(r.Amount) : `${r.Amount}%` },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -204,10 +259,14 @@ function Row({ label, value, bold }: { label: string; value: number | null; bold
   );
 }
 
-function InventoryTab({ range, canExport }: { range: Range; canExport: boolean }) {
+function InventoryTab({ range, canExport, settings }: { range: Range; canExport: boolean; settings: Settings }) {
   const [data, setData] = useState<InventoryReport | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => { api.reportsInventory(range).then((r) => setData(r as InventoryReport)); }, [range.from, range.to]);
+  useEffect(() => {
+    if (printing) { const t = setTimeout(() => window.print(), 150); return () => clearTimeout(t); }
+  }, [printing]);
 
   function exportCsv() {
     if (!data) return;
@@ -222,7 +281,7 @@ function InventoryTab({ range, canExport }: { range: Range; canExport: boolean }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
+      <div className="flex justify-end gap-2"><PrintButton onPrint={() => setPrinting(true)} /><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Stock Value" value={money(data.totalValue)} tone="green" />
         <StatCard label="Active Products" value={String(data.totalProducts)} />
@@ -263,26 +322,48 @@ function InventoryTab({ range, canExport }: { range: Range; canExport: boolean }
           keyField={(r) => r.id}
           rows={data.products}
           pageSize={20}
+          storageKey="reports-stock-valuation"
           columns={[
-            { header: "Product", render: (r) => <span>{r.name} <span className="text-stone-400">{r.name_urdu}</span></span> },
-            { header: "Category", render: (r) => r.category_name || "—" },
-            { header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
-            { header: "Avg Cost", render: (r) => money(r.avg_cost) },
-            { header: "Value", render: (r) => money(r.value) },
-            { header: "Status", render: (r) => r.stock <= 0
+            { key: "product", header: "Product", render: (r) => <span>{r.name} <span className="text-stone-400">{r.name_urdu}</span></span> },
+            { key: "category", header: "Category", render: (r) => r.category_name || "—" },
+            { key: "stock", header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
+            { key: "avgCost", header: "Avg Cost", render: (r) => money(r.avg_cost) },
+            { key: "value", header: "Value", render: (r) => money(r.value) },
+            { key: "status", header: "Status", render: (r) => r.stock <= 0
               ? <span className="text-xs font-medium text-red-600">Out of Stock</span>
               : r.stock <= r.min_stock ? <span className="text-xs font-medium text-amber-600">Low</span>
               : <span className="text-xs text-stone-400">OK</span> },
           ]}
         />
       </div>
+
+      {printing && (
+        <PrintableList
+          title={`Inventory Report — Stock Valuation (${range.from} to ${range.to})`}
+          settings={settings}
+          rows={data.products}
+          keyField={(r) => r.id}
+          columns={[
+            { header: "Product", render: (r) => r.name },
+            { header: "Category", render: (r) => r.category_name || "—" },
+            { header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
+            { header: "Avg Cost", render: (r) => money(r.avg_cost) },
+            { header: "Value", render: (r) => money(r.value) },
+            { header: "Status", render: (r) => r.stock <= 0 ? "Out of Stock" : r.stock <= r.min_stock ? "Low" : "OK" },
+          ]}
+        />
+      )}
     </div>
   );
 }
 
-function CustomerReportTab({ range, canExport }: { range: Range; canExport: boolean }) {
+function CustomerReportTab({ range, canExport, settings }: { range: Range; canExport: boolean; settings: Settings }) {
   const [rows, setRows] = useState<CustomerReportRow[]>([]);
+  const [printing, setPrinting] = useState(false);
   useEffect(() => { api.reportsCustomers(range).then((r) => setRows(r as CustomerReportRow[])); }, [range.from, range.to]);
+  useEffect(() => {
+    if (printing) { const t = setTimeout(() => window.print(), 150); return () => clearTimeout(t); }
+  }, [printing]);
 
   const totalReceivables = rows.reduce((a, r) => a + Math.max(0, r.balance), 0);
   const overdueCount = rows.filter((r) => r.balance > 0).length;
@@ -297,7 +378,7 @@ function CustomerReportTab({ range, canExport }: { range: Range; canExport: bool
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
+      <div className="flex justify-end gap-2"><PrintButton onPrint={() => setPrinting(true)} /><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Total Receivables" value={money(totalReceivables)} tone="danger" />
         <StatCard label="Customers Owing" value={String(overdueCount)} />
@@ -321,13 +402,34 @@ function CustomerReportTab({ range, canExport }: { range: Range; canExport: bool
           ]}
         />
       </div>
+
+      {printing && (
+        <PrintableList
+          title={`Customer Report (${range.from} to ${range.to})`}
+          settings={settings}
+          rows={rows}
+          keyField={(r) => r.id}
+          columns={[
+            { header: "Customer", render: (r) => r.name },
+            { header: "Type", render: (r) => r.customer_type },
+            { header: "Purchases (range)", render: (r) => money(r.totalPurchases) },
+            { header: "Payments (range)", render: (r) => money(r.totalPayments) },
+            { header: "Outstanding Balance", render: (r) => money(r.balance) },
+            { header: "Last Purchase", render: (r) => r.lastPurchaseDate ? formatDate(r.lastPurchaseDate) : "—" },
+          ]}
+        />
+      )}
     </div>
   );
 }
 
-function SupplierReportTab({ range, canExport }: { range: Range; canExport: boolean }) {
+function SupplierReportTab({ range, canExport, settings }: { range: Range; canExport: boolean; settings: Settings }) {
   const [rows, setRows] = useState<SupplierReportRow[]>([]);
+  const [printing, setPrinting] = useState(false);
   useEffect(() => { api.reportsSuppliers(range).then((r) => setRows(r as SupplierReportRow[])); }, [range.from, range.to]);
+  useEffect(() => {
+    if (printing) { const t = setTimeout(() => window.print(), 150); return () => clearTimeout(t); }
+  }, [printing]);
 
   const totalPayables = rows.reduce((a, r) => a + Math.max(0, r.balance), 0);
   const owingCount = rows.filter((r) => r.balance > 0).length;
@@ -342,7 +444,7 @@ function SupplierReportTab({ range, canExport }: { range: Range; canExport: bool
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><ExportButton canExport={canExport} onExport={exportCsv} /></div>
+      <div className="flex justify-end gap-2"><PrintButton onPrint={() => setPrinting(true)} /><ExportButton canExport={canExport} onExport={exportCsv} /></div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Total Payables" value={money(totalPayables)} tone="danger" />
         <StatCard label="Suppliers Owed" value={String(owingCount)} />
@@ -366,11 +468,28 @@ function SupplierReportTab({ range, canExport }: { range: Range; canExport: bool
           ]}
         />
       </div>
+
+      {printing && (
+        <PrintableList
+          title={`Supplier Report (${range.from} to ${range.to})`}
+          settings={settings}
+          rows={rows}
+          keyField={(r) => r.id}
+          columns={[
+            { header: "Supplier", render: (r) => r.name },
+            { header: "Category", render: (r) => r.category || "—" },
+            { header: "Purchases (range)", render: (r) => money(r.totalPurchases) },
+            { header: "Payments (range)", render: (r) => money(r.totalPayments) },
+            { header: "Outstanding Payable", render: (r) => money(r.balance) },
+            { header: "Last Purchase", render: (r) => r.lastPurchaseDate ? formatDate(r.lastPurchaseDate) : "—" },
+          ]}
+        />
+      )}
     </div>
   );
 }
 
-export function Reports({ user }: { user: AuthUser }) {
+export function Reports({ user, settings }: { user: AuthUser; settings: Settings }) {
   const [tab, setTab] = useState("sales");
   const [range, setRange] = useState<Range>({ from: firstOfMonth(), to: todayIso() });
   const perms = usePermissionSet(user.role);
@@ -388,11 +507,11 @@ export function Reports({ user }: { user: AuthUser }) {
     <div className="space-y-4">
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
       <RangePicker range={range} onChange={setRange} />
-      {tab === "sales" && <SalesRevenueTab range={range} canExport={canExport} />}
-      {tab === "pnl" && <ProfitLossTab range={range} canExport={canExport} />}
-      {tab === "inventory" && <InventoryTab range={range} canExport={canExport} />}
-      {tab === "customers" && <CustomerReportTab range={range} canExport={canExport} />}
-      {tab === "suppliers" && <SupplierReportTab range={range} canExport={canExport} />}
+      {tab === "sales" && <SalesRevenueTab range={range} canExport={canExport} settings={settings} />}
+      {tab === "pnl" && <ProfitLossTab range={range} canExport={canExport} settings={settings} />}
+      {tab === "inventory" && <InventoryTab range={range} canExport={canExport} settings={settings} />}
+      {tab === "customers" && <CustomerReportTab range={range} canExport={canExport} settings={settings} />}
+      {tab === "suppliers" && <SupplierReportTab range={range} canExport={canExport} settings={settings} />}
     </div>
   );
 }

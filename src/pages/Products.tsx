@@ -164,15 +164,16 @@ export function Products({ user, settings, onNavigate }: { user: AuthUser; setti
             keyField={(r) => r.id}
             rows={rows}
             pageSize={20}
+            storageKey="products-list"
             columns={[
-              { header: "Product Name", render: (r) => r.name },
-              { header: "نام (Urdu)", render: (r) => <span dir="rtl">{r.name_urdu}</span> },
-              { header: "Category", render: (r) => <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">{r.category_name}</span> },
-              { header: "Unit", render: (r) => `${r.package_size} ${r.package_unit}` },
-              { header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
-              { header: "Purchase", render: (r) => money(r.purchase_price) },
-              { header: "Sale", render: (r) => money(r.retail_price) },
-              { header: "Status", render: (r) => r.stock <= r.min_stock
+              { key: "name", header: "Product Name", render: (r) => r.name },
+              { key: "name_urdu", header: "نام (Urdu)", render: (r) => <span dir="rtl">{r.name_urdu}</span> },
+              { key: "category", header: "Category", render: (r) => <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">{r.category_name}</span> },
+              { key: "unit", header: "Unit", render: (r) => `${r.package_size} ${r.package_unit}` },
+              { key: "stock", header: "Stock", render: (r) => `${r.stock} ${r.package_unit}` },
+              { key: "purchase", header: "Purchase", render: (r) => money(r.purchase_price) },
+              { key: "sale", header: "Sale", render: (r) => money(r.retail_price) },
+              { key: "status", header: "Status", render: (r) => r.stock <= r.min_stock
                 ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Low Stock</span>
                 : <span className="rounded-full bg-brand-green-50 px-2 py-0.5 text-xs font-medium text-brand-green-700">Active</span> },
               { header: "Action", render: (r) => (

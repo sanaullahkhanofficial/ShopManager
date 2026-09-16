@@ -534,6 +534,35 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase S checks (this session)
+- This phase touched no backend file — `DataTable.tsx`, `Products.tsx`
+  and `Reports.tsx` only — so there is no new `scripts/test-phaseS.cjs`;
+  a headless IPC test asserting nothing new at the backend boundary would
+  be exercising the same handlers Phases L/Q already cover, not this
+  phase's actual change. Verification here is `npm run typecheck`
+  (clean), the full existing eighteen-suite regression run re-executed
+  and confirmed to pass unchanged (proving zero backend regression from a
+  phase that changed no backend code), and a Playwright interaction test
+  as the primary check, since the real behavior to verify — column
+  toggling, `localStorage` persistence across a reload, and the print
+  root populating with real data — is exactly the kind of thing only a
+  rendered, interactive browser context can actually exercise.
+- Visual smoke test (Playwright): the Products table is confirmed to
+  start at 9 real columns; opening "Columns" and unchecking "نام (Urdu)"
+  and "Purchase" is confirmed to shrink the real rendered table to 7
+  columns; reloading the page and navigating back to the same table is
+  confirmed to still show exactly 7 columns — real `localStorage`
+  persistence surviving a full page reload, not just in-memory React
+  state; and clicking "Print Report" on the Sales & Revenue tab is
+  confirmed to populate the hidden `#print-root` with the exact real
+  mocked product name ("Chakki Atta Punjab") and its real formatted
+  revenue figure ("444,000") that tab was already displaying on screen —
+  confirming the print/PDF path reads the same real data, not a
+  separately faked figure. Zero console errors beyond the one harmless
+  favicon 404.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

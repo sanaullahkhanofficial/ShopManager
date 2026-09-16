@@ -1077,6 +1077,51 @@ inert form fields:
   real restore call — zero console errors beyond the one harmless favicon
   404.
 
+## Phase S — Data-grid polish: column visibility + real Print/PDF export for Reports (this pass, real, tested)
+
+- **The headline change**: the two real remaining gaps in Section 53's
+  data-grid list — no column-visibility toggle and no PDF export anywhere
+  — are both closed. This phase touched no backend code at all; it's
+  purely `DataTable` and `Reports.tsx`, verified via typecheck, the full
+  existing regression suite (confirming zero backend regressions from a
+  phase that changed no backend file), and a Playwright interaction test
+  as the primary verification, since there was nothing new at the IPC
+  layer for a headless test to exercise.
+- **Column visibility is a real, generic `DataTable` feature, not a
+  one-off.** An optional `storageKey` prop enables a "Columns" toggle for
+  every column that opts in with a stable `key`; visibility is persisted
+  to `localStorage` per table. Omitting `storageKey` leaves a table
+  rendering exactly as it always did — every other `DataTable` usage in
+  the app (15+ pages) is completely unaffected. Applied to two real
+  tables to prove it's wired, not just built-and-unused: the Products
+  page's 9-column list (`products-list`) and the Reports Inventory tab's
+  Stock Valuation table (`reports-stock-valuation`).
+- **PDF export reuses the app's own existing print pipeline, not a new
+  dependency.** Every Reports tab now has a real "Print Report" button
+  that renders the tab's real on-screen data into the same hidden
+  `#print-root` / `PrintableList` mechanism Products/Customers/Suppliers
+  already use for their "Print List" buttons, then calls the same
+  `window.print()` — whose OS print dialog's own "Save as PDF" is the
+  real PDF output. No PDF-generation library was added just to produce a
+  second way to make the same file type Products.tsx already makes.
+- **Scope decision, stated plainly**: `DataTable`'s pagination (`pageSize`
+  prop, used across most list pages) is still client-side over an
+  already-fetched full list, not server-side SQL `LIMIT`/`OFFSET` —
+  real and working for a shop's realistic table sizes, this phase didn't
+  change that, and Section 53's original server-side-pagination spec
+  stays honestly out of scope until table sizes would actually need it.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions, as expected from a frontend-only
+  phase). Visual smoke test (Playwright): the Products table starts at 9
+  columns; opening "Columns" and unchecking two shrinks it to 7 with the
+  data correctly re-flowing; reloading the page and navigating back to
+  the same table confirms the same 2 columns are still hidden (real
+  `localStorage` persistence, not just in-memory state); and clicking
+  "Print Report" on the Sales & Revenue tab populates the hidden
+  `#print-root` with the exact real mocked product name and revenue
+  figure that tab was already displaying. Zero console errors beyond the
+  one harmless favicon 404.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1093,7 +1138,9 @@ These are named explicitly so nobody mistakes silence for "it exists":
 - **Native ESC/POS USB thermal printing.** Dual-copy printing works through
   the browser print dialog (`window.print()`), which is the documented
   fallback for the web/PWA path (Section 76); real USB ESC/POS device
-  integration for the desktop build does not exist.
+  integration for the desktop build does not exist. (Phase S's "Print
+  Report"/PDF export uses this same browser print path deliberately —
+  it's the real, working fallback, not a placeholder.)
 - **Full UI localization.** The Urdu toggle covers navigation/chrome and
   product names, not every label in every form.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
@@ -1101,14 +1148,13 @@ These are named explicitly so nobody mistakes silence for "it exists":
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
   app launch) — what's still missing is any off-device/cloud destination,
   which depends on the still-deferred cloud/sync work above.
-- **Data-grid features** (Section 53) not covered by Phase Q's real Reports
-  CSV export: no column-visibility toggle anywhere, no PDF export, and
-  `DataTable`'s pagination (used across most list pages, `pageSize` prop)
-  is client-side over an already-fetched full list — real and working for
-  a shop's realistic table sizes, but not the server-side
-  limit/offset-at-the-SQL-layer pagination Section 53 originally specified.
+- **Server-side data-grid pagination** (Section 53). `DataTable`'s
+  `pageSize` pagination and, since Phase S, its column-visibility toggle
+  are both real — what's left is that pagination still fetches a full
+  list and paginates client-side rather than querying a page at a time
+  from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–R — all done
+## Page-level phases (A–N) plus Phase O–S — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1119,16 +1165,17 @@ Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
 barcode rendering + receipt polish — all done (see sections above). **N**
 was the last lettered phase in the original plan; **O** (client-side
 per-role UI gating), **P** (real AI Business Assistant), **Q** (real
-Reports CSV export) and **R** (real backup encryption + restore) followed
-as direct, named follow-ons — **O** closing Phase M's own stated gap, **P**
-turning the Section 59–60 placeholder into a genuinely working page, **Q**
-wiring the `reports.export` permission (real since Phase 0, never acted
-on) to an actual feature, **R** turning "Backup Now" from a one-way copy
-into an actual, restorable, optionally-encrypted disaster-recovery path.
-What remains is the list below, none of it faked or half-built, all of it
-named honestly.
+Reports CSV export), **R** (real backup encryption + restore) and **S**
+(data-grid column visibility + real Print/PDF export) followed as direct,
+named follow-ons — **O** closing Phase M's own stated gap, **P** turning
+the Section 59–60 placeholder into a genuinely working page, **Q** wiring
+the `reports.export` permission (real since Phase 0, never acted on) to
+an actual feature, **R** turning "Backup Now" from a one-way copy into an
+actual, restorable, optionally-encrypted disaster-recovery path, **S**
+closing out Section 53's two remaining real gaps. What remains is the
+list below, none of it faked or half-built, all of it named honestly.
 
-## Still not started after Phase 0/A–R
+## Still not started after Phase 0/A–S
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
