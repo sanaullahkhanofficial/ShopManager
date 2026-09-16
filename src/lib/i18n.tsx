@@ -397,6 +397,26 @@ const dict: Record<string, { en: string; ur: string }> = {
   receivePaymentTitle: { en: "Receive Payment", ur: "ادائیگی وصول کریں" },
   recordPaymentBtn: { en: "Record Payment", ur: "ادائیگی درج کریں" },
   customerStatementPrefix: { en: "Customer Statement —", ur: "گاہک اسٹیٹمنٹ —" },
+
+  // Supplier Ledger (Phase AC)
+  selectASupplierTitle: { en: "Select a Supplier", ur: "ایک سپلائر منتخب کریں" },
+  searchSuppliersEllipsis: { en: "Search suppliers…", ur: "سپلائرز تلاش کریں…" },
+  chooseDifferentSupplier: { en: "Choose a different supplier", ur: "کوئی اور سپلائر منتخب کریں" },
+  ntnPrefix: { en: "NTN", ur: "این ٹی این" },
+  ledgerTab: { en: "Ledger", ur: "کھاتہ" },
+  purchaseHistoryTab: { en: "Purchase History", ur: "خریداری کی تاریخ" },
+  debitPurchaseCol: { en: "Debit (Purchase)", ur: "ڈیبٹ (خریداری)" },
+  creditPaymentCol: { en: "Credit (Payment)", ur: "کریڈٹ (ادائیگی)" },
+  newPurchaseOrderBtn: { en: "New Purchase Order", ur: "نیا خریداری آرڈر" },
+  poNumberCol: { en: "PO No.", ur: "PO نمبر" },
+  expectedCol: { en: "Expected", ur: "متوقع" },
+  makePaymentTitle: { en: "Make Payment", ur: "ادائیگی کریں" },
+  supplierStatementPrefix: { en: "Supplier Statement —", ur: "سپلائر اسٹیٹمنٹ —" },
+  poStatusDraft: { en: "DRAFT", ur: "مسودہ" },
+  poStatusSent: { en: "SENT", ur: "بھیج دیا گیا" },
+  poStatusPartiallyReceived: { en: "PARTIALLY RECEIVED", ur: "جزوی موصول" },
+  poStatusReceived: { en: "RECEIVED", ur: "موصول ہو گیا" },
+  poStatusCancelled: { en: "CANCELLED", ur: "منسوخ" },
 };
 
 // JazzCash/Easypaisa are brand names and stay untranslated everywhere; the
@@ -440,6 +460,19 @@ const FREQUENCY_KEYS: Record<string, keyof typeof dict> = {
 export function frequencyLabel(freq: string, t: (key: keyof typeof dict) => string): string {
   const key = FREQUENCY_KEYS[freq];
   return key ? t(key) : freq;
+}
+
+// Real purchase_orders.status enum values (Phase AC). Used by the shared
+// StatusBadge component (SupplierLedger.tsx), so PurchaseOrders.tsx's badge
+// becomes bilingual as a side effect of this phase even though that page's
+// other strings are not otherwise localized yet.
+const PO_STATUS_KEYS: Record<string, keyof typeof dict> = {
+  DRAFT: "poStatusDraft", SENT: "poStatusSent", PARTIALLY_RECEIVED: "poStatusPartiallyReceived",
+  RECEIVED: "poStatusReceived", CANCELLED: "poStatusCancelled",
+};
+export function poStatusLabel(status: string, t: (key: keyof typeof dict) => string): string {
+  const key = PO_STATUS_KEYS[status];
+  return key ? t(key) : status.replace(/_/g, " ");
 }
 
 interface Ctx {

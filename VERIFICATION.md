@@ -870,6 +870,53 @@ any other network resource.
   harness fix above.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AC checks (this session)
+- No new `scripts/test-phaseAC.cjs`: this phase touched two frontend
+  files (`i18n.tsx`, `SupplierLedger.tsx`) and no backend code. Verified
+  via `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Added one new helper, `poStatusLabel()`, for the real
+  `purchase_orders.status` enum. Confirmed by inspection that
+  `StatusBadge` (defined in `SupplierLedger.tsx`, exported, and imported
+  by `PurchaseOrders.tsx`) is the only place this enum is rendered, so
+  wiring the helper into that one shared component is sufficient — no
+  duplicate rendering path was missed.
+- Reused `ledgerTypeLabel()` and `paymentMethodLabel()` from Phase AB/Z
+  with zero changes needed.
+- A genuine, minor English-copy inconsistency in the pre-existing page
+  (this page said "No credit term" where Suppliers, Phase Z, said "No
+  credit term set" for the identical state) was resolved by reusing
+  Phase Z's `noCreditTermSet` key for both pages — confirmed this was a
+  pre-existing inconsistency, not something introduced this phase, by
+  checking `Suppliers.tsx`'s original string before this session ever
+  touched it.
+- Two harness gaps were hit and fixed while writing the Playwright test,
+  both consistent with the class of issue Phase AB already documented
+  for the Sidebar's group-header click behavior: (1) the Suppliers group
+  header also navigates to its first child page, so the test needed a
+  `purchases:list` stub the Suppliers page requires; (2) the test's own
+  `text=Purchase Orders` click for switching this page's own tab was
+  ambiguous with the sidebar's "Purchase Orders" nav item, since both use
+  the same `purchaseOrders` dictionary key, and Playwright clicked the
+  nav item instead of the tab — fixed by scoping the click to
+  `main >> text=Purchase Orders`.
+- Visual smoke test (Playwright, one realistic mocked supplier with a
+  real Rs. 18,000 payable, a 30-day payment term, ledger history, a
+  linked purchase, and one Purchase Order in `PARTIALLY_RECEIVED` status
+  — English then Urdu): confirms the picker, header stats, all five
+  tabs, and the Make Payment panel render real Urdu; confirms the Ledger
+  tab renders "ادھار خریداری" for the real `PURCHASE_CREDIT` row rather
+  than the raw enum text; confirms the Purchase Orders tab's status
+  badge renders "جزوی موصول" for the real `PARTIALLY_RECEIVED` PO
+  (asserted directly — checked the raw `PARTIALLY_RECEIVED`/`PARTIALLY
+  RECEIVED` text does NOT appear in the rendered Urdu page); confirms
+  the real supplier name ("Al-Manzoor Traders"), category
+  ("Fertilizer"), and reference numbers ("PINV-0007", "PO-0003") stay
+  untranslated in both languages. Zero console errors after the harness
+  fixes above.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

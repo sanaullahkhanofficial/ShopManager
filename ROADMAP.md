@@ -1512,6 +1512,71 @@ inert form fields:
   languages. Zero console errors after the harness fix above.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AC — Extend Urdu localization to Supplier Ledger (this pass, real, tested)
+
+- **The headline change**: the Supplier Ledger page — the purchase-side
+  mirror of Phase AB's Customer Ledger, closing the loop on the "Ledger"
+  button Suppliers (Phase Z) links here from — is now genuinely
+  bilingual across its picker, header stats, all five tabs (Ledger,
+  Purchase Orders, Payments, Purchase History, Ageing Report), and Make
+  Payment panel.
+- **A new helper with a real side effect, named honestly**: the Purchase
+  Orders tab's status column uses a `StatusBadge` component that is
+  *exported and shared* with `PurchaseOrders.tsx` — so the new
+  `poStatusLabel()` helper (covering the real `DRAFT`/`SENT`/
+  `PARTIALLY_RECEIVED`/`RECEIVED`/`CANCELLED` enum) makes that badge
+  bilingual on the Purchase Orders page too, purely as a consequence of
+  `StatusBadge` calling `useLang()` internally. This is recorded here
+  explicitly rather than silently claimed as "Purchase Orders done" —
+  the rest of that page's strings are untouched and still English-only;
+  only the one shared badge component changed.
+- **Heaviest single-page reuse yet**: of this page's dictionary needs,
+  the majority were satisfied by keys already added in Phases W through
+  AB — `dateCol`, `referenceCol`, `typeCol`, `noteCol`, `balance`,
+  `amountCol`, `paymentMethod`, `total`, `paid`, `invoiceCol`,
+  `categoryField`, `outstandingCol`, `dayTermsSuffix`, `payments`,
+  `purchaseOrders` (both the nav key and, now, this page's tab label),
+  `fromDateField`/`toDateField`/`printExportBtn`/`totalPurchasesLabel`/
+  `totalPaymentsLabel`/`lastPurchaseLabel`/`ageingReportTab`/
+  `current0to30`/`days31to60`/`days61to90`/`over90days`/`recordPaymentBtn`
+  all reused verbatim from Phase AB's Customer Ledger keys, since the two
+  pages share the same shape almost line for line.
+- **A minor, deliberate wording fix while reusing a key**: the original
+  page read "No credit term" here versus Suppliers' (Phase Z) "No credit
+  term set" for the identical empty-payment-terms case — an
+  inconsistency in the pre-existing English copy, not something this
+  phase introduced. Reusing Phase Z's `noCreditTermSet` key for both
+  pages fixes that inconsistency as a side effect of maximizing
+  dictionary reuse, rather than preserving two slightly different
+  English strings for the same real state.
+- **A harness gap found and fixed the same way Phase AB found one**:
+  the Suppliers sidebar group header also navigates to its first child
+  page on click (same `Sidebar.tsx` behavior Phase AB documented for
+  Customers), so the smoke test needed both `purchases:list` (the
+  Suppliers page's own data need) and a Playwright selector fix — an
+  earlier `text=Purchase Orders` click for switching this page's own
+  tab was ambiguous with the sidebar's "Purchase Orders" nav item
+  (both use the same `purchaseOrders` dictionary key) and instead
+  navigated away to the real Purchase Orders page. Fixed by scoping
+  the tab click to `main >> text=Purchase Orders`.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend file,
+  as expected for a pure frontend localization pass). Visual smoke test
+  (Playwright, one realistic mocked supplier with a real Rs. 18,000
+  payable, a 30-day payment term, ledger history, a linked purchase, and
+  one Purchase Order in `PARTIALLY_RECEIVED` status — English then
+  Urdu): confirms the picker, header stats, all five tabs, and the Make
+  Payment panel render real Urdu; confirms the Ledger tab renders
+  "ادھار خریداری" for the real `PURCHASE_CREDIT` row rather than the raw
+  enum text; confirms the Purchase Orders tab's status badge renders
+  "جزوی موصول" for the real `PARTIALLY_RECEIVED` PO (asserted the raw
+  `PARTIALLY_RECEIVED`/`PARTIALLY RECEIVED` text does NOT appear);
+  confirms the real supplier name ("Al-Manzoor Traders"), category
+  ("Fertilizer"), and reference numbers ("PINV-0007", "PO-0003") stay
+  untranslated in both languages. Zero console errors after the harness
+  fixes above.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1533,12 +1598,14 @@ These are named explicitly so nobody mistakes silence for "it exists":
   it's the real, working fallback, not a placeholder.)
 - **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
   Management (Phase W), Products (Phase X), Customers (Phase Y),
-  Suppliers (Phase Z), Expenses (Phase AA) and Customer Ledger (Phase AB)
-  are now genuinely bilingual; every other page (Reports, Settings,
-  Users, the Supplier Ledger page, …) still renders RTL-mirrored but
-  largely in English. The same
-  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`customerTypeLabel()`/`frequencyLabel()`
-  pattern is proven and repeatable across eight pages now — extending it
+  Suppliers (Phase Z), Expenses (Phase AA), Customer Ledger (Phase AB)
+  and Supplier Ledger (Phase AC) are now genuinely bilingual, plus the
+  shared `StatusBadge` component Purchase Orders also uses; every other
+  page (Reports, Settings, Users, Purchase Orders' own remaining
+  strings, …) still renders RTL-mirrored but largely in English. The
+  same
+  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`customerTypeLabel()`/`frequencyLabel()`/`poStatusLabel()`
+  pattern is proven and repeatable across nine pages now — extending it
   further is real, bounded work for future phases, not a different kind
   of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
@@ -1552,7 +1619,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–Z and AA–AB — all done
+## Page-level phases (A–N) plus Phase O–Z and AA–AC — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1600,13 +1667,18 @@ Phase Y's Customers "Ledger" button links to — reusing all three prior
 real-value helpers (`ledgerTypeLabel()`, `paymentMethodLabel()`,
 `customerTypeLabel()`) at once and adding none of its own, plus one
 deliberate cross-field reuse of `customerTypeLabel()` for `Sale.mode`
-since the two fields share the same real Retail/Wholesale values. Phase
-Z used up the original lettered sequence, so **AA** is the first
-two-letter follow-on phase; the convention continues AC, AD, … from
-here. What remains is the list below, none of it faked or half-built,
-all of it named honestly.
+since the two fields share the same real Retail/Wholesale values, and
+**AC** extending it a ninth time to Supplier Ledger — Phase Z's mirror
+of Phase AB's own mirror — adding a `poStatusLabel()` helper for the
+Purchase Order status enum that, because it lives in a `StatusBadge`
+component shared with `PurchaseOrders.tsx`, made that page's status
+badge bilingual too as a named, honest side effect without claiming
+the rest of that page as localized. Phase Z used up the original
+lettered sequence, so **AA** is the first two-letter follow-on phase;
+the convention continues AD, AE, … from here. What remains is the list
+below, none of it faked or half-built, all of it named honestly.
 
-## Still not started after Phase 0/A–Z and AA–AB
+## Still not started after Phase 0/A–Z and AA–AC
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
