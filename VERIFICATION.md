@@ -765,6 +765,37 @@ any other network resource.
   Store") stay untranslated in both languages. Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase Z checks (this session)
+- No new `scripts/test-phaseZ.cjs`: this phase touched two frontend files
+  (`i18n.tsx`, `Suppliers.tsx`) and no backend code. Verified via
+  `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Reused `ledgerTypeLabel()` (added in Phase Y, already covering
+  `PURCHASE_CREDIT`/`PURCHASE_RETURN` alongside the customer-side enum
+  values) for the Recent Transactions panel instead of writing new
+  mapping code — confirming the Phase Y design choice to build that
+  helper generically paid off exactly as intended.
+- Same loop-variable shadowing fix as Phase Y, same reason: the Recent
+  Transactions panel's `recentTx.map((t) => ...)` was renamed to
+  `(tx) => ...` while wiring, since `t` was already bound to the
+  translation function by `useLang()` in the enclosing scope.
+- Visual smoke test (Playwright, two realistic mocked suppliers — one
+  with a real Rs. 18,000 payable, a 30-day payment term, and ledger
+  history, one with none — English then Urdu): confirms the four stat
+  cards, the search/filter toolbar, the DataTable, the Add/Edit Supplier
+  form (both the read-only header state, including the "30 day terms"
+  sentence, and the full editable field set), the stats mini-cards, and
+  the Recent Transactions panel all render real Urdu; confirms the panel
+  renders "ادھار خریداری" for the real `PURCHASE_CREDIT` row and
+  "ادائیگی" for the real `PAYMENT` row rather than leaking the raw enum
+  text (asserted directly by checking the raw strings do NOT appear in
+  the rendered Urdu page); confirms both real supplier names
+  ("Al-Manzoor Traders", "Balochistan Grain Co.") and real
+  category/NTN/contact-person values stay untranslated in both
+  languages. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
