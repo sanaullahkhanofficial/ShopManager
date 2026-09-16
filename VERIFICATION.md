@@ -796,6 +796,43 @@ any other network resource.
   languages. Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AA checks (this session)
+- No new `scripts/test-phaseAA.cjs`: this phase touched two frontend
+  files (`i18n.tsx`, `Expenses.tsx`) and no backend code. Verified via
+  `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Added a new `frequencyLabel()` helper next to
+  `paymentMethodLabel()`/`customerTypeLabel()`/`ledgerTypeLabel()` in
+  `i18n.tsx`, covering the real `recurring_expenses.frequency` enum
+  (`MONTHLY`/`WEEKLY`/`YEARLY`) — the first phase to add a translation
+  helper for an enum with no prior partial coverage anywhere in the app.
+- Reused `paymentMethodLabel()` for the Expenses tab's Method column,
+  which previously rendered `r.payment_method` as a raw untranslated
+  value even in the English-only version of the page — confirmed this is
+  a genuine fix (real translated text in both languages now), not a
+  regression risk, since the raw value was never asserted on anywhere.
+- Caught and merged three near-duplicate dictionary keys before wiring:
+  a draft `noteField` that duplicated the existing `noteCol`, a draft
+  `receiptCol`/`receiptModalTitle` pair that both meant "Receipt" (now
+  a single `receiptLabel` reused three places), and a draft
+  `frequencyCol` that duplicated `frequencyField` — caught while
+  reviewing the new dictionary block before it was ever wired into the
+  page, not after.
+- Visual smoke test (Playwright, realistic mocked expense/recurring/
+  budget/category data — including a budget row engineered to actually
+  exceed its limit, to genuinely exercise the over-budget badge rather
+  than assuming it renders — all four tabs exercised in English then
+  Urdu): confirms every tab's headings, form labels, table columns, and
+  buttons render real Urdu; confirms the Recurring tab's Frequency
+  dropdown and table column both render "ماہانہ" for the real `MONTHLY`
+  value (asserted the raw `>MONTHLY<` text does NOT appear in the
+  rendered Urdu page); confirms the Budgets tab's "بجٹ سے زیادہ" badge
+  renders on the row actually over budget; confirms real expense/category
+  data ("Electricity Bill", "Shop Rent", "Utilities", "Rent") stays
+  untranslated in both languages. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

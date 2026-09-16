@@ -329,6 +329,46 @@ const dict: Record<string, { en: string; ur: string }> = {
   emailBtn: { en: "Email", ur: "ای میل" },
   categoryPlaceholderExample: { en: "Fertilizer, Grains…", ur: "کھاد، اناج…" },
   productsSuppliedPlaceholderExample: { en: "Wheat, Maida, Bran", ur: "گندم، میدہ، چوکر" },
+
+  // Expenses (Phase AA)
+  recurringTab: { en: "Recurring", ur: "بار بار" },
+  budgetsTab: { en: "Budgets", ur: "بجٹ" },
+  addExpenseTitle: { en: "Add Expense", ur: "خرچہ شامل کریں" },
+  titleField: { en: "Title", ur: "عنوان" },
+  paidByField: { en: "Paid By", ur: "ادا کنندہ" },
+  receiptLabel: { en: "Receipt", ur: "رسید" },
+  choosingEllipsis: { en: "Choosing…", ur: "منتخب کیا جا رہا ہے…" },
+  attachReceiptBtn: { en: "Attach Receipt", ur: "رسید منسلک کریں" },
+  saveExpenseBtn: { en: "Save Expense", ur: "خرچہ محفوظ کریں" },
+  recentExpensesTitle: { en: "Recent Expenses", ur: "حالیہ اخراجات" },
+  methodCol: { en: "Method", ur: "طریقہ" },
+  viewBtn: { en: "View", ur: "دیکھیں" },
+  pdfReceiptHint: { en: "— a PDF receipt; open it from the file location shown above.", ur: "— ایک PDF رسید؛ اسے اوپر دکھائی گئی فائل لوکیشن سے کھولیں۔" },
+  addRecurringExpenseTitle: { en: "Add Recurring Expense", ur: "بار بار خرچہ شامل کریں" },
+  shopRentPlaceholder: { en: "e.g. Shop Rent", ur: "مثال: دکان کا کرایہ" },
+  frequencyField: { en: "Frequency", ur: "تکرار" },
+  dayOfMonthField: { en: "Day of Month", ur: "مہینے کا دن" },
+  saveRecurringExpenseBtn: { en: "Save Recurring Expense", ur: "بار بار خرچہ محفوظ کریں" },
+  recurringExpensesTitle: { en: "Recurring Expenses", ur: "بار بار اخراجات" },
+  runDueNowBtn: { en: "Run Due Now", ur: "واجب الادا ابھی چلائیں" },
+  nextRunCol: { en: "Next Run", ur: "اگلی مرتبہ" },
+  freqMonthly: { en: "MONTHLY", ur: "ماہانہ" },
+  freqWeekly: { en: "WEEKLY", ur: "ہفتہ وار" },
+  freqYearly: { en: "YEARLY", ur: "سالانہ" },
+  recurringAutoPostHint: {
+    en: "Due recurring expenses also post automatically each time the app starts. \"Run Due Now\" lets you catch up immediately without restarting.",
+    ur: "واجب الادا بار بار اخراجات ایپ شروع ہونے پر خودکار طور پر بھی درج ہو جاتے ہیں۔ \"واجب الادا ابھی چلائیں\" آپ کو دوبارہ شروع کیے بغیر فوری طور پر اپ ڈیٹ کرنے دیتا ہے۔",
+  },
+  monthlyBudgetsVsActual: { en: "Monthly Budgets vs Actual", ur: "ماہانہ بجٹ بمقابلہ حقیقی اخراجات" },
+  budgetCol: { en: "Budget", ur: "بجٹ" },
+  spentCol: { en: "Spent", ur: "خرچ شدہ" },
+  remainingCol: { en: "Remaining", ur: "باقی" },
+  saveBtn: { en: "Save", ur: "محفوظ کریں" },
+  overBudget: { en: "Over budget", ur: "بجٹ سے زیادہ" },
+  expenseCategoriesTitle: { en: "Expense Categories", ur: "اخراجات کے زمرے" },
+  addCategoryField: { en: "Add Category", ur: "زمرہ شامل کریں" },
+  vehicleMaintenancePlaceholder: { en: "e.g. Vehicle Maintenance", ur: "مثال: گاڑی کی مرمت" },
+  addBtn: { en: "Add", ur: "شامل کریں" },
 };
 
 // JazzCash/Easypaisa are brand names and stay untranslated everywhere; the
@@ -363,6 +403,15 @@ const CUSTOMER_TYPE_KEYS: Record<string, keyof typeof dict> = {
 export function customerTypeLabel(type: string, t: (key: keyof typeof dict) => string): string {
   const key = CUSTOMER_TYPE_KEYS[type];
   return key ? t(key) : type;
+}
+
+// Real recurring_expenses.frequency enum values (Phase AA).
+const FREQUENCY_KEYS: Record<string, keyof typeof dict> = {
+  MONTHLY: "freqMonthly", WEEKLY: "freqWeekly", YEARLY: "freqYearly",
+};
+export function frequencyLabel(freq: string, t: (key: keyof typeof dict) => string): string {
+  const key = FREQUENCY_KEYS[freq];
+  return key ? t(key) : freq;
 }
 
 interface Ctx {

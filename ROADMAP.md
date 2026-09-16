@@ -1414,6 +1414,60 @@ inert form fields:
   mode. Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AA — Extend Urdu localization to Expenses (this pass, real, tested)
+
+- **A naming note**: this is the seventh localization phase and the
+  first to need a two-letter name — Phase Z used up the single letters
+  the original lettered plan (A–N) and its O-onward follow-ons had been
+  drawing from. From here, follow-on phases continue as AA, AB, AC, … —
+  the same sequential-follow-on convention Phase N through Z already
+  established, just with a wider alphabet.
+- **The headline change**: the Expenses page — all four of its tabs
+  (Expenses, Recurring, Budgets, Categories) — is now genuinely
+  bilingual. This was the first localization phase to touch a
+  four-tab page since Cash Management (Phase W), and it reused that
+  page's tab-translation pattern directly.
+- **Heaviest reuse of any localization phase so far**: of the ~40
+  dictionary keys this page needed, over a third were reused as-is from
+  Phases T through Z — `categoryField`, `amountCol`, `paymentMethod`,
+  `dateCol`, `noteCol`, `statusCol`, `categories`, `expenses` (the nav
+  key), and `paymentMethodLabel()` itself for both the payment-method
+  dropdowns and the Recent Expenses table's Method column, which
+  previously rendered `r.payment_method` as a raw value with no
+  translation at all in the old English-only page.
+- **A new shared helper for a new enum**: `recurring_expenses.frequency`
+  (`MONTHLY`/`WEEKLY`/`YEARLY`) had no prior translation anywhere in the
+  app, so a `frequencyLabel()` helper was added next to
+  `paymentMethodLabel()`/`customerTypeLabel()`/`ledgerTypeLabel()` in
+  `i18n.tsx`, used both in the Recurring form's Frequency dropdown and
+  the Recurring Expenses table's Frequency column, so the raw enum never
+  leaks into the Urdu UI.
+- **Dictionary hygiene**: while drafting the new keys, three pairs of
+  near-duplicates were caught and merged before they were ever wired up
+  (a `noteField` that would have duplicated the existing `noteCol`, a
+  `receiptCol`/`receiptModalTitle` that both meant "Receipt" and now
+  reuse the one `receiptLabel` key, and a redundant `frequencyCol` that
+  now reuses `frequencyField`) — continuing the same "maximize reuse,
+  minimize dictionary sprawl" discipline this phase series has followed
+  since Phase X.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend file,
+  as expected for a pure frontend localization pass). Visual smoke test
+  (Playwright, realistic mocked expense/recurring/budget/category data,
+  all four tabs exercised in English then Urdu): confirms the Expenses
+  tab's form, Recent Expenses table (including the Method column
+  rendering a real translated payment method) and receipt-attach flow;
+  the Recurring tab's form (including the Frequency dropdown and table
+  column both rendering "ماہانہ" for the real `MONTHLY` value, not the
+  raw enum text) and the Run Due Now hint paragraph; the Budgets tab's
+  table and its "بجٹ سے زیادہ" over-budget badge (verified against
+  mocked data engineered to actually trigger it); and the Categories
+  tab's table and Add Category form — all render real Urdu. Confirms
+  real expense/category data ("Electricity Bill", "Shop Rent",
+  "Utilities", "Rent") stays untranslated in both languages. Zero
+  console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1434,13 +1488,15 @@ These are named explicitly so nobody mistakes silence for "it exists":
   Report"/PDF export uses this same browser print path deliberately —
   it's the real, working fallback, not a placeholder.)
 - **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
-  Management (Phase W), Products (Phase X), Customers (Phase Y) and
-  Suppliers (Phase Z) are now genuinely bilingual; every other page
-  (Expenses, Reports, Settings, Users, the Customer/Supplier Ledger
-  pages, …) still renders RTL-mirrored but largely in English. The same
-  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()` pattern is
-  proven and repeatable across six pages now — extending it further is
-  real, bounded work for future phases, not a different kind of problem.
+  Management (Phase W), Products (Phase X), Customers (Phase Y),
+  Suppliers (Phase Z) and Expenses (Phase AA) are now genuinely
+  bilingual; every other page (Reports, Settings, Users, the
+  Customer/Supplier Ledger pages, …) still renders RTL-mirrored but
+  largely in English. The same
+  dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`frequencyLabel()`
+  pattern is proven and repeatable across seven pages now — extending it
+  further is real, bounded work for future phases, not a different kind
+  of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
@@ -1452,7 +1508,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–Z — all done
+## Page-level phases (A–N) plus Phase O–Z and AA — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1488,14 +1544,19 @@ other page depends on, catching (and this time preventing before it ever
 ran) the same class of string-hack bug Phase W had just named, **Y**
 extending it a fifth time to the customer/shop master list and adding
 two new shared real-value-translation helpers (`customerTypeLabel()`,
-`ledgerTypeLabel()`) built with Suppliers already in mind, and **Z**
-extending it a sixth time to Suppliers, the direct payoff of that
-Phase Y design choice — most of the page's strings and all of its
-raw-enum translation already existed and only needed reuse. What remains
-is the list below, none of it faked or half-built, all of it named
-honestly.
+`ledgerTypeLabel()`) built with Suppliers already in mind, **Z** extending
+it a sixth time to Suppliers, the direct payoff of that Phase Y design
+choice — most of the page's strings and all of its raw-enum translation
+already existed and only needed reuse — and **AA** extending it a
+seventh time to all four tabs of Expenses, adding a `frequencyLabel()`
+helper for the recurring-expense frequency enum and catching three
+near-duplicate dictionary keys before they were ever wired up. Phase Z
+used up the original lettered sequence, so **AA** is the first two-letter
+follow-on phase; the convention continues AB, AC, … from here. What
+remains is the list below, none of it faked or half-built, all of it
+named honestly.
 
-## Still not started after Phase 0/A–Z
+## Still not started after Phase 0/A–Z and AA
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
