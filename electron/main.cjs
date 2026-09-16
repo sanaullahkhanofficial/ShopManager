@@ -1461,6 +1461,89 @@ function registerIpc() {
       ORDER BY totalPurchases DESC`).all(from, to, from, to);
   });
 
+  // Section 59-60: AI Business Assistant. This is honestly a small, fixed
+  // set of deterministic keyword-matched questions, not a general LLM — no
+  // model is bundled or called (this app is offline-first, Section 5).
+  // Every question either matches one of these real, database-backed
+  // intents or gets an honest "I don't have an answer for that yet" with
+  // the real capability list — it never invents a figure it can't query.
+  // It's also strictly read-only: this handler contains no INSERT/UPDATE/
+  // DELETE, matching the placeholder's promise that the assistant never
+  // acts on its own.
+  const ASSISTANT_CAPABILITIES = [
+    "today's sales", "yesterday's sales", "this month's sales", "low stock",
+    "top debtor customer", "top payable supplier", "cash in hand",
+    "best selling product this month", "today's profit", "stock value",
+  ];
+  // Checked most-specific-phrase-first: a question can legitimately contain
+  // more than one trigger word (e.g. "best selling product this month" has
+  // both a top_product phrase and a sales_month phrase), so the narrower,
+  // more distinctive intents are matched before the broad sales-family
+  // fallbacks that "sales"/"month" alone would otherwise catch first.
+  function matchAssistantIntent(qRaw) {
+    const q = String(qRaw || "").toLowerCase();
+    const has = (...phrases) => phrases.some((p) => q.includes(p));
+    if (has("low stock", "low in stock", "running low", "low inventory", "reorder")) return "low_stock";
+    if (has("top debtor", "biggest debtor", "customer owes", "who owes us", "which customer owes", "outstanding customer")) return "top_debtor";
+    if (has("top payable", "biggest payable", "supplier owe", "which supplier", "do we owe", "money do we owe")) return "top_payable";
+    if (has("cash in hand", "cash balance", "register balance", "how much cash")) return "cash_in_hand";
+    if (has("best selling", "best seller", "top product", "most sold", "top selling")) return "top_product";
+    if (has("stock value", "inventory value", "worth")) return "stock_value";
+    if (has("profit")) return "profit_today";
+    if (has("yesterday")) return "sales_yesterday";
+    if (has("this month", "month's sales", "monthly sales", "sales this month")) return "sales_month";
+    if (has("sales", "sold", "revenue")) return "sales_today";
+    return null;
+  }
+  ipcMain.handle("assistant:ask", (_, x) => {
+    const intent = matchAssistantIntent(x && x.question);
+    if (!intent) return { matched: false, intent: null, data: null, capabilities: ASSISTANT_CAPABILITIES };
+
+    let data;
+    if (intent === "sales_today" || intent === "sales_yesterday") {
+      const date = intent === "sales_yesterday" ? new Date(Date.now() - 86400000).toISOString().slice(0, 10) : today();
+      const row = db.prepare("SELECT COALESCE(SUM(total),0) total, COUNT(*) count FROM sales WHERE sale_date=? AND status='COMPLETED'").get(date);
+      data = { date, total: row.total, count: row.count };
+    } else if (intent === "sales_month") {
+      const from = today().slice(0, 8) + "01", to = today();
+      const row = db.prepare("SELECT COALESCE(SUM(total),0) total, COUNT(*) count FROM sales WHERE status='COMPLETED' AND sale_date BETWEEN ? AND ?").get(from, to);
+      data = { from, to, total: row.total, count: row.count };
+    } else if (intent === "low_stock") {
+      const items = db.prepare("SELECT name,name_urdu,stock,min_stock,package_unit FROM products WHERE status='active' AND stock<=min_stock ORDER BY stock").all();
+      data = { items, count: items.length };
+    } else if (intent === "top_debtor") {
+      data = db.prepare(`
+        SELECT c.id, COALESCE(NULLIF(c.shop_name,''),c.name) name,
+          COALESCE(c.opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM customer_transactions t WHERE t.customer_id=c.id),0) balance
+        FROM customers c WHERE c.status='active' ORDER BY balance DESC LIMIT 1`).get() || null;
+      if (data && data.balance <= 0) data = null;
+    } else if (intent === "top_payable") {
+      data = db.prepare(`
+        SELECT s.id, s.name,
+          COALESCE(s.opening_balance,0)+COALESCE((SELECT SUM(direction*amount) FROM supplier_transactions t WHERE t.supplier_id=s.id),0) balance
+        FROM suppliers s WHERE s.status='active' ORDER BY balance DESC LIMIT 1`).get() || null;
+      if (data && data.balance <= 0) data = null;
+    } else if (intent === "cash_in_hand") {
+      const reg = currentOpenRegister();
+      data = { open: !!reg, cashInHand: reg ? reg.opening_cash + registerTotals(reg.id).cashIn - registerTotals(reg.id).cashOut : null };
+    } else if (intent === "top_product") {
+      const from = today().slice(0, 8) + "01", to = today();
+      data = db.prepare(`
+        SELECT p.id, p.name, p.name_urdu, p.package_unit, SUM(si.quantity) qty, SUM(si.amount) revenue
+        FROM sale_items si JOIN sales s ON s.id=si.sale_id JOIN products p ON p.id=si.product_id
+        WHERE s.status='COMPLETED' AND s.sale_date BETWEEN ? AND ?
+        GROUP BY p.id ORDER BY revenue DESC LIMIT 1`).get(from, to) || null;
+      if (data) data = { ...data, from, to };
+    } else if (intent === "profit_today") {
+      const sales = db.prepare("SELECT COALESCE(SUM(total),0) v FROM sales WHERE sale_date=? AND status='COMPLETED'").get(today()).v;
+      const cogs = db.prepare("SELECT COALESCE(SUM(cost*quantity),0) v FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.sale_date=? AND s.status='COMPLETED'").get(today()).v;
+      data = { date: today(), sales, cogs, profit: sales - cogs };
+    } else if (intent === "stock_value") {
+      data = { value: db.prepare("SELECT COALESCE(SUM(stock*avg_cost),0) v FROM products WHERE status='active'").get().v };
+    }
+    return { matched: true, intent, data, capabilities: ASSISTANT_CAPABILITIES };
+  });
+
   ipcMain.handle("audit:list", (_, limit) => db.prepare("SELECT a.*,u.display_name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT ?").all(limit || 200));
 
   ipcMain.handle("app:info", () => ({ version: app.getVersion(), dataPath: app.getPath("userData") }));

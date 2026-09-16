@@ -910,6 +910,63 @@ inert form fields:
   panel shows only "New Sale (POS)" instead of all six — zero console
   errors beyond the one harmless favicon 404 on both runs.
 
+## Phase P — Real AI Business Assistant (this pass, real, tested)
+
+- **The headline change**: the honest "planned, not yet built" placeholder
+  at Sections 59–60 is now a genuinely working page. It's built as a
+  small, fixed set of deterministic keyword-matched questions running real
+  SQL against this shop's own database — not a bundled or called LLM,
+  since this app is offline-first (Section 5) and has no network
+  dependency to give one an honest connection. A new `assistant:ask` IPC
+  handler matches a question against ten real intents (today's/
+  yesterday's/this month's sales, low stock, top debtor customer, top
+  payable supplier, cash in hand, best-selling product this month, today's
+  profit, stock value); anything else gets an honest "I don't have an
+  answer for that yet" with the real capability list, never a guess.
+- **Strictly read-only, matching the placeholder's own promise.** The
+  handler contains no INSERT/UPDATE/DELETE — it can only ever return data,
+  never touch it. A test sends it `"delete all sales"` as an adversarial
+  probe and confirms the real sales count is unchanged afterward.
+- **Every figure stays traceable, not just prose.** The frontend
+  (`src/pages/AIAssistant.tsx`) renders a natural-language sentence built
+  from the intent's real returned data, plus that same data shown again
+  underneath as a labeled fact list — so a number in the sentence is never
+  free-floating text that could drift from what was actually queried.
+- **Bug caught by the test suite, not left to a lucky first read**: the
+  first keyword-matcher ordering checked broad phrases ("this month",
+  generic "sales") before narrow ones, so "What's our best selling
+  product this month?" — which legitimately contains both a top-product
+  phrase and a this-month phrase — matched `sales_month` instead of
+  `top_product`. Fixed by re-ordering the matcher to check the most
+  distinctive intents first and the broad sales-family fallbacks last.
+  A second bug in the same pass: `top_debtor`'s SQL used
+  `COALESCE(c.shop_name, c.name)`, which doesn't fall through when
+  `shop_name` is an empty string rather than NULL (a customer created
+  with no shop name got reported with a blank name) — fixed with
+  `COALESCE(NULLIF(c.shop_name,''), c.name)`, matching the `shop_name ||
+  name` fallback convention the rest of the app already uses in the UI.
+- **Scope decision, stated plainly**: this is intentionally a fixed
+  command palette dressed as a chat box, not a general natural-language
+  understanding system — a real user has to phrase things close to one of
+  the ten supported questions (the sample-question chips model the
+  expected phrasing). That's a deliberate, honest boundary given the
+  offline-first constraint, not a corner cut silently.
+- Verified with `scripts/test-phaseP.cjs` (15 assertions against the real
+  backend and real seeded data: an unrecognized question is honestly
+  reported as unmatched rather than guessed at; every intent returns a
+  genuine zero/empty answer before any data exists rather than erroring;
+  after seeding a real product, customer, supplier and sale, every one of
+  the ten intents reflects the exact real numbers — the Rs. 300 sale, the
+  Rs. 5000 customer balance, the Rs. 8000 supplier balance, the Rs. 100
+  real cost-of-goods-computed profit, the Rs. 800 real remaining stock
+  value; and the adversarial "delete all sales" question performs no
+  write) — all pass, plus all sixteen earlier suites re-run clean. Visual
+  smoke test (Playwright) confirms the sample-question chips, a matched
+  answer's sentence-plus-facts layout, a full back-and-forth conversation
+  history, and the honest capability-list fallback for an unmatched
+  question all render correctly with zero console errors beyond the one
+  harmless favicon 404.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -927,7 +984,6 @@ These are named explicitly so nobody mistakes silence for "it exists":
   the browser print dialog (`window.print()`), which is the documented
   fallback for the web/PWA path (Section 76); real USB ESC/POS device
   integration for the desktop build does not exist.
-- **AI Business Assistant** (Sections 59–60) — no page, no query layer.
 - **Full UI localization.** The Urdu toggle covers navigation/chrome and
   product names, not every label in every form.
 - **Backup encryption, scheduled/cloud backup.** Backup is a plain SQLite
@@ -935,7 +991,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
 - **Data-grid features** (Section 53): column visibility, CSV/PDF export,
   server-side pagination — tables are simple, unpaginated, client-filtered.
 
-## Page-level phases (A–N) plus Phase O — all done
+## Page-level phases (A–N) plus Phase O–P — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -945,11 +1001,13 @@ Expenses v2 → **K** Dashboard v2 → **L** Reports suite → **M** Users &
 Permissions v2 → **N** Invoice/Printer Settings + 58mm dual-token + real
 barcode rendering + receipt polish — all done (see sections above). **N**
 was the last lettered phase in the original plan; **O** (client-side
-per-role UI gating) followed as a direct, named follow-on to Phase M's own
-deferred item. What remains is the list below, none of it faked or
-half-built, all of it named honestly.
+per-role UI gating) and **P** (real AI Business Assistant) followed as
+direct, named follow-ons — **O** closing Phase M's own stated gap, **P**
+turning the Section 59–60 placeholder into a genuinely working page. What
+remains is the list below, none of it faked or half-built, all of it named
+honestly.
 
-## Still not started after Phase 0/A–N
+## Still not started after Phase 0/A–P
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
@@ -959,5 +1017,4 @@ half-built, all of it named honestly.
    subsystem; deserves its own dedicated design pass rather than being
    bolted on incrementally.
 4. Tauri desktop packaging — still Electron.
-5. AI Business Assistant (Sections 59–60).
-6. Real messaging integration (SMS/WhatsApp/email) behind the send buttons.
+5. Real messaging integration (SMS/WhatsApp/email) behind the send buttons.

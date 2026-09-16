@@ -411,6 +411,50 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase P checks (this session)
+- `scripts/test-phaseP.cjs` (`npm run test:phaseP`) — 15 assertions
+  against the real backend and real seeded data: an unrecognized question
+  ("what color is the sky") is honestly reported as unmatched rather than
+  guessed at, and still returns the real capability list; before any data
+  exists, every real intent returns a genuine zero/empty answer (Rs. 0
+  across 0 invoices, register closed with no fake cash figure) rather than
+  erroring; after seeding a real product (10 KG opening stock at Rs. 100
+  avg cost), a real customer (Rs. 5000 opening balance), a real supplier
+  (Rs. 8000 opening balance), and a real 2 KG Rs. 300 sale, every one of
+  the ten intents reflects those exact real numbers — including a Rs. 100
+  profit correctly computed as Rs. 300 sales minus the real Rs. 200 cost
+  of goods sold, and a Rs. 800 stock value correctly reflecting the real
+  8 KG of remaining stock; and an adversarial "delete all sales" question
+  is confirmed to perform no write (the real sales count is unchanged
+  before and after). All passed, plus all sixteen earlier suites
+  (`test-accounting` through `test-phaseO`) re-run clean.
+- **Two bugs caught by the test suite before being called done, not left
+  for a user to find**: (1) the keyword matcher originally checked broad
+  phrases ("this month", generic "sales") before narrow ones, so "What's
+  our best selling product this month?" matched `sales_month` instead of
+  `top_product` — fixed by reordering to check the most distinctive
+  intents first; (2) `top_debtor`'s SQL used
+  `COALESCE(c.shop_name, c.name)`, which doesn't fall through when
+  `shop_name` is an empty string rather than NULL, so a customer with no
+  shop name was reported with a blank name — fixed with
+  `COALESCE(NULLIF(c.shop_name,''), c.name)`, matching the `shop_name ||
+  name` convention already used throughout the real UI (`Customers.tsx`,
+  `CustomerLedger.tsx`). Both were caught by real assertions comparing
+  actual returned data against the exact expected values, not accepted on
+  a first "looks right" pass.
+- Visual smoke test (Playwright, `assistant:ask` mocked with representative
+  real response shapes for five sample questions) confirms the sample-
+  question chips render and are clickable, a matched answer renders as a
+  natural-language sentence plus a separate labeled fact list underneath
+  (so every number in the sentence is traceable to an actual queried
+  value, not free-floating prose), a multi-turn conversation history
+  renders correctly, and an unmatched question ("what's the weather like")
+  shows the honest "I don't have an answer for that yet" fallback with the
+  real capability list as chips — zero console errors beyond the one
+  harmless favicon 404.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

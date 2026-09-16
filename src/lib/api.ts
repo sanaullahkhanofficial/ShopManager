@@ -1,6 +1,7 @@
 // Typed wrapper around the IPC bridge exposed by electron/preload.cjs.
 // Every call goes straight to the local SQLite database over
 // window.api.invoke(channel, ...args) — see electron/main.cjs for handlers.
+import type { AssistantResponse } from "../types";
 
 declare global {
   interface Window {
@@ -124,6 +125,8 @@ export const api = {
   reportsCustomers: (range: { from: string; to: string }) => invoke("reports:customers", range),
   reportsSuppliers: (range: { from: string; to: string }) => invoke("reports:suppliers", range),
   auditList: (limit = 200) => invoke("audit:list", limit),
+
+  assistantAsk: (question: string) => invoke<AssistantResponse>("assistant:ask", { question }),
 
   locationsList: () => invoke("locations:list"),
   locationsSave: (x: Record<string, unknown>) => invoke("locations:save", x),

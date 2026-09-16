@@ -535,3 +535,20 @@ export interface AuthUser {
   display_name: string;
   role: Role;
 }
+
+// Section 59-60: AI Business Assistant. `intent` names which of the fixed,
+// real query intents matched (see assistant:ask in electron/main.cjs);
+// `data` is the raw queried result for that intent, shaped differently per
+// intent, which is why it's left loosely typed here — the UI narrows it by
+// `intent` before reading fields off it.
+export type AssistantIntent =
+  | "sales_today" | "sales_yesterday" | "sales_month" | "low_stock"
+  | "top_debtor" | "top_payable" | "cash_in_hand" | "top_product"
+  | "profit_today" | "stock_value";
+
+export interface AssistantResponse {
+  matched: boolean;
+  intent: AssistantIntent | null;
+  data: Record<string, unknown> | null;
+  capabilities: string[];
+}
