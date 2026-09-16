@@ -659,6 +659,43 @@ any other network resource.
 - `npx tsc --noEmit`, `node --check electron/main.cjs`, and
   `npm run build:web` all pass with zero errors.
 
+## Phase W checks (this session)
+- No new `scripts/test-phaseW.cjs`: this phase touched two frontend
+  files (`i18n.tsx`, `CashRegister.tsx`) and no backend code. Verified
+  via `npm run typecheck`, `node --check electron/main.cjs`, and the full
+  existing nineteen-suite backend regression run re-executed and
+  confirmed to pass unchanged (zero regression, as expected).
+- **A real bug caught before it shipped, by re-reading the diff, not by a
+  test**: the first pass at the Bank Accounts "Opening Balance" field
+  reused the `openingCash` dictionary key via
+  `t("openingCash").replace("Cash", "Balance")`. This happens to produce
+  the right English text by coincidence (the literal substring "Cash"
+  exists in the English string), but the Urdu translation has no such
+  substring — so in Urdu the field would have silently stayed mislabeled
+  "Opening Cash" instead of "Opening Balance", with no error, no crash,
+  nothing to catch it in a typecheck or a passing test. Caught on review
+  before committing; fixed with a real, distinct `openingBalance`
+  dictionary key instead of a string-manipulation hack.
+- Visual smoke test (Playwright, realistic mocked cash-register/bank-
+  account/petty-cash data, all four tabs exercised in Urdu): the open
+  Register tab's four stat cards, the Today's Cash Movements table (with
+  its `IN` direction value correctly rendered as translated "آمد", not
+  the raw English enum value), the Cash Withdrawal form, and the
+  Denomination Count card all confirmed to render real Urdu text. The
+  Bank Accounts tab is confirmed to show "ایک اکاؤنٹ منتخب کریں" (Select
+  an account) before any row is clicked, and real translated "Current
+  Balance" text plus the real, correctly-untranslated account name "Main
+  Business Account" after clicking a row — proving the translation layer
+  activates and deactivates correctly with the same conditional rendering
+  logic the English version already had. The Petty Cash tab's history
+  table headers and the Transfer tab's hint text, From/To dropdown
+  options (showing translated "Cash Register"/"Petty Cash" labels next to
+  the real, untranslated bank account name), and reason placeholder all
+  confirmed to render real Urdu. Zero console errors beyond the one
+  harmless favicon 404.
+- `npx tsc --noEmit`, `node --check electron/main.cjs`, and
+  `npm run build:web` all pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`

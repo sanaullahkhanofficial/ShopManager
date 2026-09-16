@@ -7,6 +7,7 @@ import { Field, SelectField } from "../components/ui/Field";
 import { Tabs } from "../components/ui/Tabs";
 import { DataTable } from "../components/ui/DataTable";
 import { useToast } from "../components/ui/Toast";
+import { useLang } from "../lib/i18n";
 import type { AuthUser, BankAccount, BankTransaction, CashRegisterState, PettyCashEntry } from "../types";
 
 // Pakistani currency denominations (Section 27).
@@ -14,6 +15,7 @@ const DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
 
 function RegisterTab({ user }: { user: AuthUser }) {
   const { push } = useToast();
+  const { t } = useLang();
   const [state, setState] = useState<CashRegisterState | null>(null);
   const [openingCash, setOpeningCash] = useState(0);
   const [counts, setCounts] = useState<Record<number, number>>({});
@@ -50,9 +52,9 @@ function RegisterTab({ user }: { user: AuthUser }) {
   if (!state) {
     return (
       <div className="card max-w-sm space-y-3">
-        <h3 className="text-sm font-semibold text-brand-navy-900">Open Cash Register</h3>
-        <Field label="Opening Cash" type="number" value={openingCash} onChange={(e) => setOpeningCash(Number(e.target.value))} />
-        <Button variant="primary" className="w-full" onClick={open}><Unlock size={15} /> Open Register</Button>
+        <h3 className="text-sm font-semibold text-brand-navy-900">{t("openCashRegisterTitle")}</h3>
+        <Field label={t("openingCash")} type="number" value={openingCash} onChange={(e) => setOpeningCash(Number(e.target.value))} />
+        <Button variant="primary" className="w-full" onClick={open}><Unlock size={15} /> {t("openRegisterBtn")}</Button>
       </div>
     );
   }
@@ -61,24 +63,24 @@ function RegisterTab({ user }: { user: AuthUser }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="card"><p className="label">Opening Cash</p><p className="text-lg font-semibold">{money(state.opening_cash)}</p></div>
-          <div className="card"><p className="label">Cash In</p><p className="text-lg font-semibold text-brand-green-700">{money(state.cashIn)}</p></div>
-          <div className="card"><p className="label">Cash Out</p><p className="text-lg font-semibold text-red-600">{money(state.cashOut)}</p></div>
-          <div className="card"><p className="label">Expected Closing</p><p className="text-lg font-semibold">{money(state.expected)}</p></div>
+          <div className="card"><p className="label">{t("openingCash")}</p><p className="text-lg font-semibold">{money(state.opening_cash)}</p></div>
+          <div className="card"><p className="label">{t("cashInLabel")}</p><p className="text-lg font-semibold text-brand-green-700">{money(state.cashIn)}</p></div>
+          <div className="card"><p className="label">{t("cashOutLabel")}</p><p className="text-lg font-semibold text-red-600">{money(state.cashOut)}</p></div>
+          <div className="card"><p className="label">{t("expectedClosing")}</p><p className="text-lg font-semibold">{money(state.expected)}</p></div>
         </div>
         <div className="card">
-          <h3 className="mb-3 text-sm font-semibold text-brand-navy-900">Today's Cash Movements</h3>
+          <h3 className="mb-3 text-sm font-semibold text-brand-navy-900">{t("todaysCashMovements")}</h3>
           <DataTable
             keyField={(r) => r.id}
             rows={state.transactions}
             pageSize={20}
             columns={[
-              { header: "Time", render: (r) => formatDateTime(r.created_at) },
-              { header: "Direction", render: (r) => <span className={r.direction === "IN" ? "text-brand-green-700" : "text-red-600"}>{r.direction}</span> },
-              { header: "Category", render: (r) => r.category.replace(/_/g, " ") },
-              { header: "Reference", render: (r) => r.reference },
-              { header: "Note", render: (r) => r.note },
-              { header: "Amount", render: (r) => money(r.amount) },
+              { header: t("timeCol"), render: (r) => formatDateTime(r.created_at) },
+              { header: t("directionCol"), render: (r) => <span className={r.direction === "IN" ? "text-brand-green-700" : "text-red-600"}>{t(r.direction === "IN" ? "dirIn" : "dirOut")}</span> },
+              { header: t("categoryCol"), render: (r) => r.category.replace(/_/g, " ") },
+              { header: t("referenceCol"), render: (r) => r.reference },
+              { header: t("noteCol"), render: (r) => r.note },
+              { header: t("amountCol"), render: (r) => money(r.amount) },
             ]}
           />
         </div>
@@ -86,14 +88,14 @@ function RegisterTab({ user }: { user: AuthUser }) {
 
       <div className="space-y-4">
         <div className="card space-y-2">
-          <h3 className="text-sm font-semibold text-brand-navy-900">Cash Withdrawal</h3>
-          <Field label="Amount" type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} />
-          <Field label="Reason" value={withdrawNote} onChange={(e) => setWithdrawNote(e.target.value)} />
-          <Button className="w-full" onClick={withdraw} disabled={withdrawAmount <= 0}>Record Withdrawal</Button>
+          <h3 className="text-sm font-semibold text-brand-navy-900">{t("cashWithdrawal")}</h3>
+          <Field label={t("amountCol")} type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} />
+          <Field label={t("reasonLabel")} value={withdrawNote} onChange={(e) => setWithdrawNote(e.target.value)} />
+          <Button className="w-full" onClick={withdraw} disabled={withdrawAmount <= 0}>{t("recordWithdrawal")}</Button>
         </div>
 
         <div className="card space-y-2">
-          <h3 className="text-sm font-semibold text-brand-navy-900">Denomination Count</h3>
+          <h3 className="text-sm font-semibold text-brand-navy-900">{t("denominationCount")}</h3>
           {DENOMINATIONS.map((d) => (
             <div key={d} className="flex items-center justify-between gap-2 text-sm">
               <span className="w-16 text-stone-500">Rs. {d}</span>
@@ -101,22 +103,22 @@ function RegisterTab({ user }: { user: AuthUser }) {
               <span className="w-24 text-right text-stone-500">{money(d * (counts[d] || 0))}</span>
             </div>
           ))}
-          <div className="flex justify-between border-t border-stone-100 pt-2 font-semibold"><span>Actual Cash</span><span>{money(actualCash)}</span></div>
+          <div className="flex justify-between border-t border-stone-100 pt-2 font-semibold"><span>{t("actualCash")}</span><span>{money(actualCash)}</span></div>
         </div>
 
         <div className="card space-y-2">
-          <h3 className="text-sm font-semibold text-brand-navy-900">Close Day</h3>
-          <Field label="Closing Notes" value={closingNotes} onChange={(e) => setClosingNotes(e.target.value)} />
-          <Button variant="danger" className="w-full" onClick={close}><Lock size={15} /> Close Register</Button>
+          <h3 className="text-sm font-semibold text-brand-navy-900">{t("closeDay")}</h3>
+          <Field label={t("closingNotes")} value={closingNotes} onChange={(e) => setClosingNotes(e.target.value)} />
+          <Button variant="danger" className="w-full" onClick={close}><Lock size={15} /> {t("closeRegisterBtn")}</Button>
           {closeResult && (
             <div className={`mt-2 rounded-md p-3 text-sm ${closeResult.status === "MATCHED" ? "bg-brand-green-50 text-brand-green-800" : "bg-red-50 text-red-800"}`}>
               <div className="flex items-center gap-2 font-semibold">
                 {closeResult.status === "MATCHED" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                {closeResult.status === "MATCHED" ? "MATCHED" : closeResult.status === "OVER" ? "CASH OVER" : "CASH SHORT"}
+                {closeResult.status === "MATCHED" ? t("matchedStatus") : closeResult.status === "OVER" ? t("cashOverStatus") : t("cashShortStatus")}
               </div>
-              <p>Expected: {money(closeResult.expected)}</p>
-              <p>Actual: {money(closeResult.actual)}</p>
-              <p>Difference: {money(closeResult.difference)}</p>
+              <p>{t("expectedPrefix")} {money(closeResult.expected)}</p>
+              <p>{t("actualPrefix")} {money(closeResult.actual)}</p>
+              <p>{t("differencePrefix")} {money(closeResult.difference)}</p>
             </div>
           )}
         </div>
@@ -127,6 +129,7 @@ function RegisterTab({ user }: { user: AuthUser }) {
 
 function BankAccountsTab({ user }: { user: AuthUser }) {
   const { push } = useToast();
+  const { t } = useLang();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -158,16 +161,16 @@ function BankAccountsTab({ user }: { user: AuthUser }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
       <div className="card space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-brand-navy-900">Bank Accounts</h3>
-          <Button onClick={() => setShowAdd((v) => !v)}><Plus size={14} /> {showAdd ? "Cancel" : "Add Account"}</Button>
+          <h3 className="text-sm font-semibold text-brand-navy-900">{t("tabBankAccounts")}</h3>
+          <Button onClick={() => setShowAdd((v) => !v)}><Plus size={14} /> {showAdd ? t("cancelBtn") : t("addAccount")}</Button>
         </div>
         {showAdd && (
           <div className="grid grid-cols-2 gap-3 rounded-card border border-stone-200 bg-stone-50 p-3">
-            <Field label="Account Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Business Account" />
-            <Field label="Bank Name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
-            <Field label="Account Number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
-            <Field label="Opening Balance" type="number" value={openingBalance} onChange={(e) => setOpeningBalance(Number(e.target.value))} />
-            <Button variant="primary" className="col-span-2" onClick={saveAccount}>Save Account</Button>
+            <Field label={t("accountName")} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Business Account" />
+            <Field label={t("bankName")} value={bankName} onChange={(e) => setBankName(e.target.value)} />
+            <Field label={t("accountNumber")} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            <Field label={t("openingBalance")} type="number" value={openingBalance} onChange={(e) => setOpeningBalance(Number(e.target.value))} />
+            <Button variant="primary" className="col-span-2" onClick={saveAccount}>{t("saveAccount")}</Button>
           </div>
         )}
         <DataTable
@@ -175,39 +178,39 @@ function BankAccountsTab({ user }: { user: AuthUser }) {
           rows={accounts}
           onRowClick={(r) => setSelectedId(r.id)}
           columns={[
-            { header: "Name", render: (r) => <span className={r.id === selectedId ? "font-semibold text-brand-green-700" : ""}>{r.name}</span> },
-            { header: "Bank", render: (r) => r.bank_name || "—" },
-            { header: "Account #", render: (r) => r.account_number || "—" },
-            { header: "Balance", render: (r) => money(r.balance) },
+            { header: t("nameCol"), render: (r) => <span className={r.id === selectedId ? "font-semibold text-brand-green-700" : ""}>{r.name}</span> },
+            { header: t("bankCol"), render: (r) => r.bank_name || "—" },
+            { header: t("accountNumCol"), render: (r) => r.account_number || "—" },
+            { header: t("balance"), render: (r) => money(r.balance) },
           ]}
         />
       </div>
 
       <div className="card space-y-3">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><Landmark size={15} /> {selected ? selected.name : "Select an account"}</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><Landmark size={15} /> {selected ? selected.name : t("selectAnAccount")}</h3>
         {selected ? (
           <>
             <div className="rounded-md bg-stone-50 p-3 text-sm">
-              <p className="text-xs text-stone-400">Current Balance</p>
+              <p className="text-xs text-stone-400">{t("currentBalance")}</p>
               <p className="text-lg font-semibold text-brand-navy-900">{money(selected.balance)}</p>
             </div>
             <div className="max-h-96 space-y-1.5 overflow-y-auto">
-              {transactions.length === 0 && <p className="py-4 text-center text-sm text-stone-400">No transactions yet</p>}
-              {transactions.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-2 rounded-md border border-stone-100 p-2 text-sm">
+              {transactions.length === 0 && <p className="py-4 text-center text-sm text-stone-400">{t("noTransactionsYet")}</p>}
+              {transactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between gap-2 rounded-md border border-stone-100 p-2 text-sm">
                   <div className="min-w-0">
-                    <p className="truncate text-stone-700">{t.note || t.category.replace(/_/g, " ")}</p>
-                    <p className="text-xs text-stone-400">{t.reference} &middot; {formatDateTime(t.created_at)}</p>
+                    <p className="truncate text-stone-700">{tx.note || tx.category.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-stone-400">{tx.reference} &middot; {formatDateTime(tx.created_at)}</p>
                   </div>
-                  <span className={`whitespace-nowrap font-medium ${t.direction === "IN" ? "text-brand-green-700" : "text-red-600"}`}>
-                    {t.direction === "IN" ? "+" : "-"}{money(t.amount)}
+                  <span className={`whitespace-nowrap font-medium ${tx.direction === "IN" ? "text-brand-green-700" : "text-red-600"}`}>
+                    {tx.direction === "IN" ? "+" : "-"}{money(tx.amount)}
                   </span>
                 </div>
               ))}
             </div>
           </>
         ) : (
-          <p className="py-6 text-center text-sm text-stone-400">Click a bank account to view its transactions</p>
+          <p className="py-6 text-center text-sm text-stone-400">{t("clickBankAccountHint")}</p>
         )}
       </div>
     </div>
@@ -215,6 +218,7 @@ function BankAccountsTab({ user }: { user: AuthUser }) {
 }
 
 function PettyCashTab() {
+  const { t } = useLang();
   const [balance, setBalance] = useState(0);
   const [entries, setEntries] = useState<PettyCashEntry[]>([]);
 
@@ -227,22 +231,22 @@ function PettyCashTab() {
   return (
     <div className="space-y-4">
       <div className="card max-w-xs space-y-1">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><PiggyBank size={15} /> Petty Cash Balance</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><PiggyBank size={15} /> {t("pettyCashBalance")}</h3>
         <p className="text-2xl font-semibold text-brand-navy-900">{money(balance)}</p>
-        <p className="text-xs text-stone-400">Fund or draw down petty cash from the Transfer tab.</p>
+        <p className="text-xs text-stone-400">{t("pettyCashHint")}</p>
       </div>
       <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-brand-navy-900">Petty Cash History</h3>
+        <h3 className="text-sm font-semibold text-brand-navy-900">{t("pettyCashHistory")}</h3>
         <DataTable
           keyField={(r) => r.id}
           rows={entries}
           pageSize={20}
           columns={[
-            { header: "Direction", render: (r) => <span className={r.direction === "IN" ? "text-brand-green-700" : "text-red-600"}>{r.direction}</span> },
-            { header: "Reference", render: (r) => r.reference },
-            { header: "Note", render: (r) => r.note },
-            { header: "Amount", render: (r) => money(r.amount) },
-            { header: "Date", render: (r) => formatDateTime(r.created_at) },
+            { header: t("directionCol"), render: (r) => <span className={r.direction === "IN" ? "text-brand-green-700" : "text-red-600"}>{t(r.direction === "IN" ? "dirIn" : "dirOut")}</span> },
+            { header: t("referenceCol"), render: (r) => r.reference },
+            { header: t("noteCol"), render: (r) => r.note },
+            { header: t("amountCol"), render: (r) => money(r.amount) },
+            { header: t("dateCol"), render: (r) => formatDateTime(r.created_at) },
           ]}
         />
       </div>
@@ -254,6 +258,7 @@ type TransferEndpoint = "CASH" | "PETTY" | `BANK:${number}`;
 
 function TransferTab({ user, registerOpen, accounts, onTransferred }: { user: AuthUser; registerOpen: boolean; accounts: BankAccount[]; onTransferred: () => void }) {
   const { push } = useToast();
+  const { t } = useLang();
   const [from, setFrom] = useState<TransferEndpoint>("CASH");
   const [to, setTo] = useState<TransferEndpoint>("PETTY");
   const [amount, setAmount] = useState(0);
@@ -287,33 +292,34 @@ function TransferTab({ user, registerOpen, accounts, onTransferred }: { user: Au
   }
 
   const options: Array<{ value: TransferEndpoint; label: string }> = [
-    { value: "CASH", label: "Cash Register" },
-    { value: "PETTY", label: "Petty Cash" },
-    ...accounts.map((a) => ({ value: `BANK:${a.id}` as TransferEndpoint, label: `Bank — ${a.name}` })),
+    { value: "CASH", label: t("cashRegister") },
+    { value: "PETTY", label: t("pettyCash") },
+    ...accounts.map((a) => ({ value: `BANK:${a.id}` as TransferEndpoint, label: `${t("bankPrefix")} — ${a.name}` })),
   ];
 
   return (
     <div className="card max-w-lg space-y-3">
-      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><ArrowLeftRight size={15} /> Cash Transfer</h3>
-      <p className="text-xs text-stone-400">Move money between the cash register, a bank account, and petty cash — each transfer posts two linked, correctly-signed entries.</p>
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-brand-navy-900"><ArrowLeftRight size={15} /> {t("cashTransferTitle")}</h3>
+      <p className="text-xs text-stone-400">{t("cashTransferHint")}</p>
       <div className="grid grid-cols-2 gap-3">
-        <SelectField label="From" value={from} onChange={(e) => setFrom(e.target.value as TransferEndpoint)}>
+        <SelectField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value as TransferEndpoint)}>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </SelectField>
-        <SelectField label="To" value={to} onChange={(e) => setTo(e.target.value as TransferEndpoint)}>
+        <SelectField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value as TransferEndpoint)}>
           {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </SelectField>
       </div>
-      <Field label="Amount" type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
-      <Field label="Note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for transfer (optional)" />
+      <Field label={t("amountCol")} type="number" min={0} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+      <Field label={t("noteCol")} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("transferReasonPlaceholder")} />
       <Button variant="primary" className="w-full" onClick={submit} disabled={busy || amount <= 0}>
-        <Banknote size={15} /> Record Transfer
+        <Banknote size={15} /> {t("recordTransfer")}
       </Button>
     </div>
   );
 }
 
 export function CashRegister({ user }: { user: AuthUser }) {
+  const { t } = useLang();
   const [tab, setTab] = useState("register");
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -326,11 +332,11 @@ export function CashRegister({ user }: { user: AuthUser }) {
   useEffect(loadShared, [refreshKey]);
 
   const tabs = useMemo(() => ([
-    { id: "register", label: "Register", icon: Lock },
-    { id: "bank", label: "Bank Accounts", icon: Landmark },
-    { id: "petty", label: "Petty Cash", icon: PiggyBank },
-    { id: "transfer", label: "Transfer", icon: ArrowLeftRight },
-  ]), []);
+    { id: "register", label: t("tabRegister"), icon: Lock },
+    { id: "bank", label: t("tabBankAccounts"), icon: Landmark },
+    { id: "petty", label: t("pettyCash"), icon: PiggyBank },
+    { id: "transfer", label: t("tabTransfer"), icon: ArrowLeftRight },
+  ]), [t]);
 
   return (
     <div className="space-y-4">

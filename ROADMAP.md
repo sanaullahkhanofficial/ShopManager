@@ -1251,6 +1251,47 @@ inert form fields:
   the app's own chrome text, never real business data. Zero console
   errors beyond the one harmless favicon 404.
 
+## Phase W — Extend Urdu localization to Cash Management (this pass, real, tested)
+
+- **The headline change**: the Cash Management page (Register, Bank
+  Accounts, Petty Cash, Transfer — the daily open/close cash-discipline
+  ritual this app was originally built around) is now genuinely bilingual
+  across all four tabs, not just the two pages localized so far. ~45 new
+  dictionary keys were added, reusing existing ones (`pettyCash`,
+  `cashRegister`, `balance`, `timeCol`) wherever a Phase V/T key already
+  meant the exact same thing, rather than adding a duplicate with
+  different wording.
+- **Real data values translated, not just labels**: cash-movement
+  direction (`IN`/`OUT`) now renders as real Urdu ("آمد"/"اخراج") instead
+  of raw English enum values leaking into an otherwise-Urdu screen, and
+  the MATCHED/CASH OVER/CASH SHORT reconciliation status strings are
+  genuinely translated too.
+- **A real bug caught and fixed before it shipped, not after**: the first
+  pass at the Bank Accounts "Add Account" form's Opening Balance field
+  reused the existing `openingCash` dictionary key via
+  `t("openingCash").replace("Cash", "Balance")` — a string-replace hack
+  that works by coincidence in English but silently does nothing in
+  Urdu, since the Urdu translation has no literal substring "Cash" to
+  replace, leaving the field mislabeled "Opening Cash" instead of
+  "Opening Balance" in Urdu. Caught before committing by re-reading the
+  diff, not by a test; replaced with a real, distinct `openingBalance`
+  dictionary key.
+- Verified with `npm run typecheck`, `node --check electron/main.cjs`,
+  and the full nineteen-suite backend regression run (zero regressions —
+  this phase touched no backend file). Visual smoke test (Playwright,
+  realistic mocked register/bank/petty-cash data across all four tabs):
+  confirms the open Register tab's stat cards, withdrawal form,
+  denomination counter and movements table all render real Urdu, and the
+  `IN` transaction correctly shows translated "آمد"; the Bank Accounts
+  tab correctly shows "ایک اکاؤنٹ منتخب کریں" (Select an account) before
+  any row is clicked and real translated "Current Balance"/transaction
+  detail after selecting a real account (with the real account name
+  "Main Business Account" staying correctly untranslated); the Petty
+  Cash tab's history table headers translate; and the Transfer tab's
+  hint text, From/To dropdowns (showing translated "Cash Register" and
+  "Petty Cash" options) and the reason placeholder all render real Urdu.
+  Zero console errors beyond the one harmless favicon 404.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1270,12 +1311,13 @@ These are named explicitly so nobody mistakes silence for "it exists":
   integration for the desktop build does not exist. (Phase S's "Print
   Report"/PDF export uses this same browser print path deliberately —
   it's the real, working fallback, not a placeholder.)
-- **Full UI localization.** POS (Phase T) and Dashboard (Phase V) are now
-  genuinely bilingual; every other page (Products, Customers, Suppliers,
-  Cash, Expenses, Reports, Settings, Users, …) still renders RTL-mirrored
-  but largely in English. The same dictionary/`t()`/`paymentMethodLabel()`
-  pattern is proven and repeatable — extending it further is real,
-  bounded work for future phases, not a different kind of problem.
+- **Full UI localization.** POS (Phase T), Dashboard (Phase V) and Cash
+  Management (Phase W) are now genuinely bilingual; every other page
+  (Products, Customers, Suppliers, Expenses, Reports, Settings, Users, …)
+  still renders RTL-mirrored but largely in English. The same
+  dictionary/`t()`/`paymentMethodLabel()` pattern is proven and repeatable
+  across three pages now — extending it further is real, bounded work for
+  future phases, not a different kind of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
@@ -1287,7 +1329,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–V — all done
+## Page-level phases (A–N) plus Phase O–W — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1301,23 +1343,25 @@ per-role UI gating), **P** (real AI Business Assistant), **Q** (real
 Reports CSV export), **R** (real backup encryption + restore), **S**
 (data-grid column visibility + real Print/PDF export), **T** (real,
 reachable Urdu localization for POS), **U** (fixed the real Sidebar RTL
-bug Phase T found) and **V** (extended real Urdu localization to the
-Dashboard) followed as direct, named follow-ons — **O** closing Phase M's
-own stated gap, **P** turning the Section 59–60 placeholder into a
-genuinely working page, **Q** wiring the `reports.export` permission
-(real since Phase 0, never acted on) to an actual feature, **R** turning
-"Backup Now" from a one-way copy into an actual, restorable, optionally-
-encrypted disaster-recovery path, **S** closing out Section 53's two
-remaining real gaps, **T** making the already-built RTL/i18n system
-reachable for the first time and genuinely bilingual on the highest-
-traffic screen, **U** correctly diagnosing and fixing the RTL text-
-truncation bug Phase T's screenshot first exposed, **V** extending the
-same real pattern to the first page every user sees and unifying the
-payment-method-label mapping both pages now genuinely share. What remains
-is the list below, none of it faked or half-built, all of it named
-honestly.
+bug Phase T found), **V** (extended real Urdu localization to the
+Dashboard) and **W** (extended it again to Cash Management) followed as
+direct, named follow-ons — **O** closing Phase M's own stated gap, **P**
+turning the Section 59–60 placeholder into a genuinely working page, **Q**
+wiring the `reports.export` permission (real since Phase 0, never acted
+on) to an actual feature, **R** turning "Backup Now" from a one-way copy
+into an actual, restorable, optionally-encrypted disaster-recovery path,
+**S** closing out Section 53's two remaining real gaps, **T** making the
+already-built RTL/i18n system reachable for the first time and genuinely
+bilingual on the highest-traffic screen, **U** correctly diagnosing and
+fixing the RTL text-truncation bug Phase T's screenshot first exposed,
+**V** extending the same real pattern to the first page every user sees
+and unifying the payment-method-label mapping both pages now genuinely
+share, **W** extending it a third time to the daily cash-discipline
+workflow and catching a real silent-failure translation bug before it
+shipped. What remains is the list below, none of it faked or half-built,
+all of it named honestly.
 
-## Still not started after Phase 0/A–V
+## Still not started after Phase 0/A–W
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.
