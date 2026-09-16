@@ -1636,6 +1636,53 @@ inert form fields:
   Cashier") stay untranslated in both languages. Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AE — Extend Urdu localization to Settings (this pass, real, tested)
+
+- **The headline change, and the largest single-page localization phase
+  so far**: all ten Settings tabs — Business Profile, System Settings,
+  Invoice & Print, Payment Methods, Tax & Discounts, Locations &
+  Warehouses, Notifications, Backup & Data, Integrations, and System
+  Preferences — plus the three subcomponents they render
+  (`PaymentMethodsPanel`, `LocationsPanel`, `BackupPanel`) and the
+  Invoice Preview modal, are now genuinely bilingual. ~110 new
+  dictionary keys were added, reusing `resetBtn`, `saveChangesBtn`,
+  `phoneNumberField`, `addressField`, `addBtn`, `typeCol`, `statusCol`,
+  and `customerTypeLabel()` (for the Default Sale Mode dropdown's real
+  Retail/Wholesale values) wherever an existing key already fit.
+- **A scope boundary drawn on purpose**: the Invoice Template dropdown's
+  four real stored values (`Standard`, `Modern`, `Minimal`, `Compact
+  (Thermal)`) stay untranslated, unlike every other bounded enum this
+  phase and its predecessors have translated. These aren't a UI label —
+  `ReceiptPreview.tsx` reads the stored English string directly to pick
+  a distinct receipt layout, so translating the display text would mean
+  either storing a second, parallel Urdu-labeled value or adding a
+  translation layer into the receipt-rendering logic itself, neither of
+  which is in scope for a Settings-page localization pass. Named here
+  rather than left as a silent gap.
+- **A real, minor English-copy simplification**: the auto-backup count
+  hint originally read "N automatic backup" for one and "N automatic
+  backups" for more than one, built with a ternary in the component.
+  Since Urdu doesn't pluralize the same way, the dictionary key now
+  reads "automatic backup(s) kept on disk" for both languages and both
+  counts — a small, deliberate readability trade-off instead of
+  maintaining two English variants that have no natural Urdu
+  equivalent.
+- Verified with `npm run typecheck` and the full eighteen-suite backend
+  regression run (zero regressions — this phase touched no backend
+  file, as expected for a pure frontend localization pass). Visual
+  smoke test (Playwright, a realistic mocked settings object covering
+  every tab's real fields/toggles, two real payment methods including
+  the untranslated brand name "JazzCash", and one real location "Main
+  Godown" — all ten tabs exercised in English then Urdu, plus the
+  Invoice Preview modal): confirms every tab's headings, field labels,
+  switches, and buttons render real Urdu; confirms the real business
+  name, payment method, and location data stay untranslated in both
+  languages; confirms the Invoice Preview modal's title renders
+  "انوائس پیش منظر — A4 · Standard · دوہری کاپی", correctly mixing
+  translated chrome with the untranslated real invoice size/template
+  values. Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Deliberately deferred — not implemented, not faked
 
 These are named explicitly so nobody mistakes silence for "it exists":
@@ -1658,15 +1705,15 @@ These are named explicitly so nobody mistakes silence for "it exists":
 - **Full UI localization.** POS (Phase T), Dashboard (Phase V), Cash
   Management (Phase W), Products (Phase X), Customers (Phase Y),
   Suppliers (Phase Z), Expenses (Phase AA), Customer Ledger (Phase AB),
-  Supplier Ledger (Phase AC) and Users & Permissions (Phase AD) are now
-  genuinely bilingual, plus the shared `StatusBadge` component Purchase
-  Orders also uses; every other page (Reports, Settings, Purchase
-  Orders' own remaining strings, …) still renders RTL-mirrored but
+  Supplier Ledger (Phase AC), Users & Permissions (Phase AD) and
+  Settings (Phase AE) are now genuinely bilingual, plus the shared
+  `StatusBadge` component Purchase Orders also uses; only Reports and
+  Purchase Orders' own remaining strings still render RTL-mirrored but
   largely in English. The same
   dictionary/`t()`/`paymentMethodLabel()`/`ledgerTypeLabel()`/`customerTypeLabel()`/`frequencyLabel()`/`poStatusLabel()`/`roleLabel()`
-  pattern is proven and repeatable across ten pages now — extending it
-  further is real, bounded work for future phases, not a different kind
-  of problem.
+  pattern is proven and repeatable across eleven pages now — extending
+  it to the two remaining pages is real, bounded work, not a different
+  kind of problem.
 - **Cloud backup.** Local backup is real and, since Phase R, can be
   encrypted and genuinely restored; automatic local scheduling has quietly
   existed since an earlier phase (`maybeAutoBackup()`, checked on every
@@ -1678,7 +1725,7 @@ These are named explicitly so nobody mistakes silence for "it exists":
   list and paginates client-side rather than querying a page at a time
   from SQLite, which a shop's realistic table sizes don't currently need.
 
-## Page-level phases (A–N) plus Phase O–Z and AA–AD — all done
+## Page-level phases (A–N) plus Phase O–Z and AA–AE — all done
 
 Redesigning every screen against the 19 reference images, in this order:
 **A** shell → **B** Settings v2 → **C** Products/Inventory v2 → **D**
@@ -1739,12 +1786,20 @@ time to Users & Permissions, its largest single enumeration lift yet —
 plus a `roleLabel()` helper built as a general-purpose mapping (used
 three times on this one page already) that a future phase can drop
 into the four other files that still show `user.role` raw without
-reinventing it. Phase Z used up the original lettered sequence, so
-**AA** is the first two-letter follow-on phase; the convention
-continues AE, AF, … from here. What remains is the list below, none of
-it faked or half-built, all of it named honestly.
+reinventing it, and **AE** extending it an eleventh time to Settings —
+its largest single-page lift by string count (~110 new keys across ten
+tabs and three subcomponents) — while drawing one explicit scope
+boundary of its own: the Invoice Template dropdown's real stored values
+stay untranslated because `ReceiptPreview.tsx` reads that exact English
+string to pick a receipt layout, so translating the label would mean
+inventing a second stored value or a translation layer inside the
+receipt-rendering logic, neither of which belongs to a Settings-page
+phase. Phase Z used up the original lettered sequence, so **AA** is the
+first two-letter follow-on phase; the convention continues AF, AG, …
+from here. What remains is the list below, none of it faked or
+half-built, all of it named honestly.
 
-## Still not started after Phase 0/A–Z and AA–AD
+## Still not started after Phase 0/A–Z and AA–AE
 
 1. Native ESC/POS USB thermal printing (Section 76) — browser print remains
    the only path until this is built.

@@ -959,6 +959,33 @@ any other network resource.
   Urdu page). Zero console errors.
 - `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
 
+## Phase AE checks (this session)
+- No new `scripts/test-phaseAE.cjs`: this phase touched two frontend
+  files (`i18n.tsx`, `SettingsPage.tsx`) and no backend code. Verified
+  via `npm run typecheck` and the full existing eighteen-suite backend
+  regression run re-executed and confirmed to pass unchanged (zero
+  regression, as expected).
+- Confirmed the Invoice Template scope decision by reading
+  `ReceiptPreview.tsx` directly: it branches on the exact stored English
+  string (`"Modern"`, `"Minimal"`, `"Compact (Thermal)"`, else
+  `"Standard"`) to choose a receipt layout, so this is a real, checked
+  reason to leave that one dropdown's option values untranslated, not
+  an assumption.
+- Visual smoke test (Playwright, a realistic mocked settings object
+  covering every tab's real fields and toggle states, two real payment
+  methods — "Cash" and the untranslated brand name "JazzCash" — and one
+  real location "Main Godown" — all ten tabs exercised in English then
+  Urdu, plus the Invoice Preview modal): confirms every tab's headings,
+  field labels, switches, and buttons render real Urdu; confirms the
+  real business name, payment methods, and location stay untranslated
+  in both languages (checked immediately after visiting each relevant
+  tab, not after navigating away, to avoid a false pass from stale page
+  content); confirms the Invoice Preview modal's title correctly mixes
+  translated chrome ("انوائس پیش منظر —", "دوہری کاپی") with the
+  untranslated real `invoice_size`/`invoice_template` values ("A4",
+  "Standard"). Zero console errors.
+- `npx tsc --noEmit` and `npm run build:web` both pass with zero errors.
+
 ## Runtime checks to perform on Windows (not exercised in this Linux session)
 1. `npm ci`
 2. `npm run check`
